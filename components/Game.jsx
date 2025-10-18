@@ -123,6 +123,11 @@ export default function Game() {
     return () => window.removeEventListener("keydown", handleKey);
   }, []);
 
+  // compute distance to target
+  const targetDistance = target
+    ? Math.hypot(target.x - cx, target.y - cy)
+    : null;
+
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white">
       <h2 className="text-2xl font-bold">Type royale 🧟</h2>
@@ -154,26 +159,30 @@ export default function Game() {
         </div>
 
         {/* enemies */}
-        {enemies.map((e) => (
-          <div
-            key={e.id}
-            title={e.word}
-            className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity"
-            style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
-          >
+        {enemies.map((e) => {
+          const isTarget = target && target.id === e.id;
+          const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
+          return (
             <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-                e.alive ? "bg-emerald-400" : "bg-slate-600"
-              } border-slate-800 shadow`}
-              style={{ fontSize: 18 }}
+              key={e.id}
+              title={e.word}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+              style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
             >
-              🧟
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
+                  isTarget ? "ring-2 ring-yellow-400" : ""
+                }`}
+                style={{ fontSize: 18 }}
+              >
+                🧟
+              </div>
+              <div className="text-center mt-1 text-xs text-slate-900 dark:text-white">
+                {e.alive ? e.word : "DEAD"}
+              </div>
             </div>
-            <div className="text-center mt-1 text-xs text-slate-900 dark:text-white">
-              {e.alive ? e.word : "DEAD"}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* tracker box outside the game area */}
@@ -186,12 +195,10 @@ export default function Game() {
             {target ? target.word : "None"}
           </div>
         </div>
-        <div className="w-10 h-10 flex items-center justify-center">
-          {target ? (
-            <TrackerArrow target={target} cx={cx} cy={cy} />
-          ) : (
-            <div className="text-sm text-slate-500">—</div>
-          )}
+        <div className="flex items-center gap-3">
+          <div className="text-sm">
+            {targetDistance ? `${Math.round(targetDistance)}px` : "—"}
+          </div>
         </div>
         <div className="ml-auto text-sm text-slate-600 dark:text-slate-300">
           Enemies: {enemies.filter((e) => e.alive).length}
