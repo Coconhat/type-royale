@@ -34,16 +34,49 @@ export default function Game() {
   useEffect(() => {
     let mounted = true;
 
-    function scheduleNext() {
-      const now = Date.now();
-      const elapsedSec = Math.floor((now - startTime.current) / 1000);
-      // spawn interval decreases over time: from 1000ms down to 500ms (staggered single spawns)
-      const minDelay = 1000; // endgame ~1s between spawns
-      const maxDelay = 1500; // start at ~1.5s between spawns
-      const t = Math.min(elapsedSec / totalGameSeconds, 1);
-      const delay = Math.round(maxDelay - (maxDelay - minDelay) * t);
+    // Get difficulty parameters based on current phase
+    function getDifficultyPhase(elapsedSec) {
+      const progress = elapsedSec / totalGameSeconds;
 
-      // spawn a single enemy now
+      if (progress < 0.15) {
+        return {
+          spawnInterval: [2000, 2500],
+          speedRange: [0.3, 0.5],
+          burstChance: 0,
+          variety: 0.2,
+        };
+      } else if (progress < 0.35) {
+        return {
+          spawnInterval: [1200, 1800],
+          speedRange: [0.5, 0.9],
+          burstChance: 0.1,
+          variety: 0.4,
+        };
+      } else if (progress < 0.6) {
+        return {
+          spawnInterval: [800, 1300],
+          speedRange: [0.8, 1.4],
+          burstChance: 0.15,
+          variety: 0.6,
+        };
+      } else if (progress < 0.85) {
+        return {
+          spawnInterval: [600, 1000],
+          speedRange: [1.2, 2.0],
+          burstChance: 0.25,
+          variety: 0.8,
+        };
+      } else {
+        return {
+          spawnInterval: [400, 700],
+          speedRange: [1.8, 3.5],
+          burstChance: 0.4,
+          variety: 1.0,
+        };
+      }
+    }
+
+    function spawnEnemy(phase) {
       const angle = Math.random() * Math.PI * 2;
       const x = cx + Math.cos(angle) * spawnRadius;
       const y = cy + Math.sin(angle) * spawnRadius;
@@ -52,40 +85,76 @@ export default function Game() {
       const dist = Math.hypot(dx, dy) || 1;
       const ux = dx / dist;
       const uy = dy / dist;
-      const baseSpeed = 0.35 + Math.random() * 0.6; // slower individuals
 
-      const newEnemy = {
+      // Use phase-based speed with variety
+      const [minSpeed, maxSpeed] = phase.speedRange;
+      const baseSpeed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+      const varietyFactor = 1 + (Math.random() - 0.5) * phase.variety;
+      const finalSpeed = baseSpeed * varietyFactor;
+
+      return {
         id: nextId.current++,
         word: words[Math.floor(Math.random() * words.length)],
         x,
         y,
         ux,
         uy,
-        baseSpeed,
+        baseSpeed: finalSpeed,
         alive: true,
         reached: false,
       };
-      if (mounted) setEnemies((prev) => [...prev, newEnemy]);
+    }
 
-      // schedule next single spawn
+    function scheduleNext() {
+      if (!mounted) return;
+
+      const now = Date.now();
+      const elapsedSec = Math.floor((now - startTime.current) / 1000);
+      const phase = getDifficultyPhase(elapsedSec);
+
+      // Determine if this is a burst spawn
+      const burstSize =
+        Math.random() < phase.burstChance
+          ? Math.floor(Math.random() * 3) + 1 // 1-3 zombies
+          : 1;
+
+      // Spawn zombie(s)
+      const newEnemies = [];
+      for (let i = 0; i < burstSize; i++) {
+        newEnemies.push(spawnEnemy(phase));
+      }
+      setEnemies((prev) => [...prev, ...newEnemies]);
+
+      // Adaptive delay based on alive count
+      const [minDelay, maxDelay] = phase.spawnInterval;
+      let delay = Math.random() * (maxDelay - minDelay) + minDelay;
+
+      setEnemies((current) => {
+        const aliveCount = current.filter((e) => e.alive && !e.reached).length;
+        if (aliveCount > 20) delay *= 1.5;
+        else if (aliveCount < 5) delay *= 0.7;
+        return current;
+      });
+
+      // If burst, add small delay between spawns in burst
+      if (burstSize > 1) {
+        delay = 150; // Quick successive spawns in burst
+      }
+
       timeout = setTimeout(scheduleNext, delay);
     }
 
-    // start scheduling (wait the computed delay before first spawn)
-    const now = Date.now();
-    const elapsedSec = Math.floor((now - startTime.current) / 1000);
-    const initialT = Math.min(elapsedSec / totalGameSeconds, 1);
-    const minDelayInit = 1000;
-    const maxDelayInit = 1500;
-    const initialDelay = Math.round(
-      maxDelayInit - (maxDelayInit - minDelayInit) * initialT
-    );
+    // Initial spawn with phase-appropriate delay
+    const elapsedSec = Math.floor((Date.now() - startTime.current) / 1000);
+    const initialPhase = getDifficultyPhase(elapsedSec);
+    const [minInit, maxInit] = initialPhase.spawnInterval;
+    const initialDelay = Math.random() * (maxInit - minInit) + minInit;
+
     let timeout = setTimeout(scheduleNext, initialDelay);
     return () => {
       mounted = false;
       clearTimeout(timeout);
     };
-    // DONT remove comment below !!!
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
