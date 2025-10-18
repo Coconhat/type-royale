@@ -16,6 +16,10 @@ export default function Game() {
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
   const nextId = useRef(0);
+  // game timing (adjust totalGameSeconds to 180 for 3min or 240 for 4min)
+  const startTime = useRef(Date.now());
+  const totalGameSeconds = 340; // 4 minutes target difficulty ramp
+  const [elapsed, setElapsed] = useState(0);
 
   // game dimensions (px) - keep stable refs so effects don't require them as deps
   const dims = useRef({ width: 600, height: 600, playerRadius: 22 });
@@ -26,55 +30,93 @@ export default function Game() {
   const spawnRadius = Math.min(width, height) / 2 - 40; // spawn on the circle
   const playerRadius = dims.current.playerRadius;
 
-  // spawn an enemy on the circle perimeter at random angle
+  // spawn an enemy on the circle perimeter at random angle with dynamic spawn interval
   useEffect(() => {
-    const interval = setInterval(() => {
+    let mounted = true;
+
+    function scheduleNext() {
+      const now = Date.now();
+      const elapsedSec = Math.floor((now - startTime.current) / 1000);
+      // spawn interval decreases over time: from 1000ms down to 500ms (staggered single spawns)
+      const minDelay = 1000; // endgame ~1s between spawns
+      const maxDelay = 1500; // start at ~1.5s between spawns
+      const t = Math.min(elapsedSec / totalGameSeconds, 1);
+      const delay = Math.round(maxDelay - (maxDelay - minDelay) * t);
+
+      // spawn a single enemy now
       const angle = Math.random() * Math.PI * 2;
       const x = cx + Math.cos(angle) * spawnRadius;
       const y = cy + Math.sin(angle) * spawnRadius;
-      // direction toward center
       const dx = cx - x;
       const dy = cy - y;
       const dist = Math.hypot(dx, dy) || 1;
-      const speed = 0.6 + Math.random() * 0.8; // px per tick
-      const vx = (dx / dist) * speed;
-      const vy = (dy / dist) * speed;
+      const ux = dx / dist;
+      const uy = dy / dist;
+      const baseSpeed = 0.35 + Math.random() * 0.6; // slower individuals
 
       const newEnemy = {
         id: nextId.current++,
         word: words[Math.floor(Math.random() * words.length)],
         x,
         y,
-        vx,
-        vy,
+        ux,
+        uy,
+        baseSpeed,
         alive: true,
         reached: false,
       };
-      setEnemies((prev) => [...prev, newEnemy]);
-    }, 1800);
-    return () => clearInterval(interval);
+      if (mounted) setEnemies((prev) => [...prev, newEnemy]);
+
+      // schedule next single spawn
+      timeout = setTimeout(scheduleNext, delay);
+    }
+
+    // start scheduling (wait the computed delay before first spawn)
+    const now = Date.now();
+    const elapsedSec = Math.floor((now - startTime.current) / 1000);
+    const initialT = Math.min(elapsedSec / totalGameSeconds, 1);
+    const minDelayInit = 1000;
+    const maxDelayInit = 1500;
+    const initialDelay = Math.round(
+      maxDelayInit - (maxDelayInit - minDelayInit) * initialT
+    );
+    let timeout = setTimeout(scheduleNext, initialDelay);
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
     // DONT remove comment below !!!
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // move enemies toward player (center)
+  // move enemies toward player (center) with speed scaled by elapsed time
   useEffect(() => {
-    const tickMs = 30;
+    const tickMs = 60; // zombie speed
     const move = setInterval(() => {
+      const now = Date.now();
+      const elapsedSec = Math.floor((now - startTime.current) / 1000);
+      // difficulty multiplier ramps over totalGameSeconds; makes enemies much faster by the end
+      const maxMultiplier = 6; // at end of totalGameSeconds, speed will be ~ (1 + maxMultiplier)
+      const t = Math.min(elapsedSec / totalGameSeconds, 1);
+      const multiplier = 1 + t * maxMultiplier;
+
+      // update elapsed UI state occasionally
+      setElapsed(elapsedSec);
+
       setEnemies((prev) =>
         prev
           .map((e) => {
             if (!e.alive || e.reached) return e;
-            const nx = e.x + e.vx;
-            const ny = e.y + e.vy;
+            const nx = e.x + e.ux * e.baseSpeed * multiplier;
+            const ny = e.y + e.uy * e.baseSpeed * multiplier;
             const d = Math.hypot(nx - cx, ny - cy);
             if (d <= playerRadius) {
               return { ...e, x: nx, y: ny, reached: true };
             }
             return { ...e, x: nx, y: ny };
           })
-          // keep a reasonable limit of enemies (will change this in the future, as time progress there will be more enemies)
-          .slice(-40)
+          // keep a reasonable limit of enemies
+          .slice(-80)
       );
     }, tickMs);
     return () => clearInterval(move);
@@ -171,7 +213,7 @@ export default function Game() {
             >
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
-                  isTarget ? "ring-2 ring-yellow-400" : ""
+                  isTarget ? "ring-1 ring-yellow-400" : ""
                 }`}
                 style={{ fontSize: 18 }}
               >
@@ -199,6 +241,7 @@ export default function Game() {
           <div className="text-sm">
             {targetDistance ? `${Math.round(targetDistance)}px` : "—"}
           </div>
+          <div className="text-xs text-slate-400">Time: {elapsed}s</div>
         </div>
         <div className="ml-auto text-sm text-slate-600 dark:text-slate-300">
           Enemies: {enemies.filter((e) => e.alive).length}
