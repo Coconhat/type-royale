@@ -11,6 +11,125 @@ export default function Game() {
   const startTime = useRef(Date.now());
   const totalGameSeconds = 340; // 4 minutes target difficulty ramp
   const [elapsed, setElapsed] = useState(0);
+  const audioCtxRef = useRef(null);
+  const sampleBufferRef = useRef(null);
+  const attemptedLoadRef = useRef(false);
+
+  function playGunshot() {
+    try {
+      if (!audioCtxRef.current)
+        audioCtxRef.current = new (window.AudioContext ||
+          window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
+
+      // If we have a decoded sample buffer, play it (preferred)
+      if (sampleBufferRef.current) {
+        const src = ctx.createBufferSource();
+        src.buffer = sampleBufferRef.current;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.9, ctx.currentTime);
+        src.connect(gain).connect(ctx.destination);
+        src.start();
+        return;
+      }
+
+      // Fallback: synthesize short gunshot-like noise + thump
+      const now = ctx.currentTime;
+      const duration = 0.22;
+
+      // noise burst
+      const bufferSize = Math.floor(ctx.sampleRate * duration);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        const env = Math.pow(1 - i / bufferSize, 2);
+        data[i] = (Math.random() * 2 - 1) * env * 0.6;
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(1, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+      // low thump
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + duration);
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.8, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      noise.connect(noiseGain).connect(ctx.destination);
+      osc.connect(oscGain).connect(ctx.destination);
+      noise.start(now);
+      osc.start(now);
+      noise.stop(now + duration);
+      osc.stop(now + duration);
+    } catch (err) {
+      // audio may be blocked by browser until user gesture; ignore errors
+      if (typeof console !== "undefined" && console.debug)
+        console.debug("playGunshot error", err);
+    }
+  }
+
+  // Prefetch and decode a WAV sample from /gunshot.wav
+  useEffect(() => {
+    // only try once
+    if (attemptedLoadRef.current) return;
+    attemptedLoadRef.current = true;
+
+    // lazy init audio context only for decoding (no resume required yet)
+    try {
+      if (!audioCtxRef.current)
+        audioCtxRef.current = new (window.AudioContext ||
+          window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
+
+      fetch("/gunshot.wav")
+        .then((res) => {
+          if (!res.ok) throw new Error("Sample not found");
+          return res.arrayBuffer();
+        })
+        .then((arr) => ctx.decodeAudioData(arr))
+        .then((decoded) => {
+          sampleBufferRef.current = decoded;
+        })
+        .catch((err) => {
+          //fall back to synthesized sound if cant read sample
+          if (typeof console !== "undefined" && console.debug)
+            console.debug("sample load error", err);
+        });
+    } catch (err) {
+      if (typeof console !== "undefined" && console.debug)
+        console.debug("sample fetch init error", err);
+    }
+  }, []);
+
+  // Ensure AudioContext is resumed on first user gesture in browsers that require activity
+  useEffect(() => {
+    const resume = () => {
+      try {
+        if (
+          audioCtxRef.current &&
+          typeof audioCtxRef.current.resume === "function"
+        ) {
+          audioCtxRef.current.resume();
+        }
+      } catch (err) {
+        if (typeof console !== "undefined" && console.debug)
+          console.debug("resume error", err);
+      }
+      window.removeEventListener("click", resume);
+      window.removeEventListener("keydown", resume);
+    };
+    window.addEventListener("click", resume, { once: true });
+    window.addEventListener("keydown", resume, { once: true });
+    return () => {
+      window.removeEventListener("click", resume);
+      window.removeEventListener("keydown", resume);
+    };
+  }, []);
   // refs for spawn control and death detection
   const spawnTimeoutRef = useRef(null);
   const scheduleNextRef = useRef(null);
@@ -170,10 +289,8 @@ export default function Game() {
     const move = setInterval(() => {
       const now = Date.now();
       const elapsedSec = Math.floor((now - startTime.current) / 1000);
-      // difficulty multiplier ramps over totalGameSeconds; makes enemies much faster by the end
-      const maxMultiplier = 6; // at end of totalGameSeconds, speed will be ~ (1 + maxMultiplier)
-      const t = Math.min(elapsedSec / totalGameSeconds, 1);
-      const multiplier = 1 + t * maxMultiplier;
+      // keep enemy speed constant (no global acceleration)
+      const multiplier = 1;
 
       // update elapsed UI state occasionally
       setElapsed(elapsedSec);
@@ -242,6 +359,8 @@ export default function Game() {
         prev.map((e) => (e.id === target.id ? { ...e, alive: false } : e))
       );
       setInput("");
+      // play gunshot sound on success
+      playGunshot();
     }
   }, [input, target]);
 
@@ -272,7 +391,7 @@ export default function Game() {
         style={{
           width,
           height,
-          background: "backgroundColor: #000000",
+          background: "#000000",
         }}
       >
         {/* player in center */}
@@ -313,7 +432,7 @@ export default function Game() {
               >
                 🧟
               </div>
-              <div className="text-center mt-1 text-xs text-slate-900 dark:text-white">
+              <div className="text-center mt-1 text-xs text-white">
                 {e.alive ? e.word : "DEAD"}
               </div>
             </div>
