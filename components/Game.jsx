@@ -264,7 +264,7 @@ export default function Game() {
     : null;
 
   return (
-    <div className="p-5 font-mono text-slate-900 dark:text-white">
+    <div className="p-5 font-mono text-slate-900 dark:text-white ">
       <h2 className="text-2xl font-bold">Type royale 🧟</h2>
 
       <div
@@ -272,8 +272,7 @@ export default function Game() {
         style={{
           width,
           height,
-          background:
-            "radial-gradient(circle at 50% 50%, #e8f0ff 0%, #cfe0ff 40%, #9fbaff 100%)",
+          background: "backgroundColor: #000000",
         }}
       >
         {/* player in center */}
@@ -301,7 +300,9 @@ export default function Game() {
             <div
               key={e.id}
               title={e.word}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
+                target && target.id === e.id ? "z-10" : ""
+              }`}
               style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
             >
               <div
