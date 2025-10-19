@@ -435,18 +435,22 @@ export default function Game() {
 
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
-      <h2 className="text-2xl font-bold">Type royale 🧟</h2>
+      <div className="text-center mx-auto">
+        <h2 className="text-2xl font-bold">Type royale 🧟</h2>
 
-      {/* Hearts HUD */}
-      <div className="flex items-center gap-2 mt-2">
-        <div className="font-medium">Hearts:</div>
-        <div className="text-xl">
-          {Array.from({ length: hearts }).map((_, i) => (
-            <span key={i} className="text-red-500 mr-1">
-              ❤️
-            </span>
-          ))}
-          {hearts === 0 && <span className="text-sm text-slate-400"> (0)</span>}
+        {/* Hearts HUD */}
+        <div className="flex items-center justify-center gap-2 mt-2 ">
+          <div className="font-medium">Hearts:</div>
+          <div className="text-xl">
+            {Array.from({ length: hearts }).map((_, i) => (
+              <span key={i} className="text-red-500 mr-1">
+                ❤️
+              </span>
+            ))}
+            {hearts === 0 && (
+              <span className="text-sm text-slate-400"> (0)</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -532,6 +536,7 @@ export default function Game() {
           Enemies: {enemies.filter((e) => e.alive).length}
         </div>
       </div>
+
       {/* Game over overlay */}
       {gameOver && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
