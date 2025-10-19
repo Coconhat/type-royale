@@ -7,6 +7,8 @@ export default function Game() {
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
   const nextId = useRef(0);
+  // (health/gameOver declarations are added further below)
+
   // game timing (adjust totalGameSeconds to 180 for 3min or 240 for 4min)
   const startTime = useRef(Date.now());
   const totalGameSeconds = 340; // 4 minutes target difficulty ramp
@@ -14,6 +16,16 @@ export default function Game() {
   const audioCtxRef = useRef(null);
   const sampleBufferRef = useRef(null);
   const attemptedLoadRef = useRef(false);
+  // player health and game state
+  const [hearts, setHearts] = useState(3);
+  const [gameOver, setGameOver] = useState(false);
+  // ref for movement interval so we can clear it from other code
+  const moveIntervalRef = useRef(null);
+  // mirror ref for gameOver so long-running effects can check it without adding deps
+  const gameOverRef = useRef(false);
+  useEffect(() => {
+    gameOverRef.current = gameOver;
+  }, [gameOver]);
 
   function playGunshot() {
     try {
@@ -227,6 +239,8 @@ export default function Game() {
     }
 
     function scheduleNext() {
+      // don't spawn if game ended
+      if (gameOverRef.current) return;
       if (!mounted) return;
 
       const now = Date.now();
@@ -284,8 +298,12 @@ export default function Game() {
   }, []);
 
   // move enemies toward player (center) with speed scaled by elapsed time
-  useEffect(() => {
-    const tickMs = 60; // zombie speed
+  // helper to start the movement interval (call on mount and on restart)
+  function startMovement() {
+    // clear existing interval if any
+    if (moveIntervalRef.current) clearInterval(moveIntervalRef.current);
+
+    const tickMs = 60; // zombie tick
     const move = setInterval(() => {
       const now = Date.now();
       const elapsedSec = Math.floor((now - startTime.current) / 1000);
@@ -295,23 +313,56 @@ export default function Game() {
       // update elapsed UI state occasionally
       setElapsed(elapsedSec);
 
-      setEnemies((prev) =>
-        prev
+      setEnemies((prev) => {
+        // reachedCount must be local to this updater - React may call the updater multiple
+        // times (Strict Mode), so using an outer-scoped counter causes inflated counts.
+        let reachedCount = 0;
+
+        const updated = prev
           .map((e) => {
             if (!e.alive || e.reached) return e;
             const nx = e.x + e.ux * e.baseSpeed * multiplier;
             const ny = e.y + e.uy * e.baseSpeed * multiplier;
             const d = Math.hypot(nx - cx, ny - cy);
             if (d <= playerRadius) {
-              return { ...e, x: nx, y: ny, reached: true };
+              // mark this enemy as dead/reached so it won't trigger again
+              reachedCount += 1;
+              return { ...e, x: nx, y: ny, reached: true, alive: false };
             }
             return { ...e, x: nx, y: ny };
           })
           // keep a reasonable limit of enemies
-          .slice(-80)
-      );
+          .slice(-50);
+
+        // apply heart decrement once per tick if any reached
+        if (reachedCount > 0) {
+          setHearts((h) => {
+            const next = Math.max(0, h - reachedCount);
+            if (next <= 0) {
+              // set game over and stop loops
+              setGameOver(true);
+              if (spawnTimeoutRef.current)
+                clearTimeout(spawnTimeoutRef.current);
+              if (moveIntervalRef.current)
+                clearInterval(moveIntervalRef.current);
+            }
+            return next;
+          });
+        }
+
+        return updated;
+      });
     }, tickMs);
-    return () => clearInterval(move);
+
+    moveIntervalRef.current = move;
+  }
+
+  // start movement on mount
+  useEffect(() => {
+    startMovement();
+    return () => {
+      if (moveIntervalRef.current) clearInterval(moveIntervalRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -385,6 +436,19 @@ export default function Game() {
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
       <h2 className="text-2xl font-bold">Type royale 🧟</h2>
+
+      {/* Hearts HUD */}
+      <div className="flex items-center gap-2 mt-2">
+        <div className="font-medium">Hearts:</div>
+        <div className="text-xl">
+          {Array.from({ length: hearts }).map((_, i) => (
+            <span key={i} className="text-red-500 mr-1">
+              ❤️
+            </span>
+          ))}
+          {hearts === 0 && <span className="text-sm text-slate-400"> (0)</span>}
+        </div>
+      </div>
 
       <div
         className="mt-3 rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
@@ -468,6 +532,32 @@ export default function Game() {
           Enemies: {enemies.filter((e) => e.alive).length}
         </div>
       </div>
+      {/* Game over overlay */}
+      {gameOver && (
+        <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg text-center">
+            <h3 className="text-2xl font-bold mb-2">Game Over</h3>
+            <div className="mb-4">You ran out of hearts.</div>
+            <button
+              onClick={() => {
+                // minimal reset
+                setEnemies([]);
+                setHearts(3);
+                setGameOver(false);
+                nextId.current = 0;
+                startTime.current = Date.now();
+                if (typeof scheduleNextRef.current === "function")
+                  scheduleNextRef.current();
+                // ensure movement is running after restart
+                if (typeof startMovement === "function") startMovement();
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded"
+            >
+              Restart
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
