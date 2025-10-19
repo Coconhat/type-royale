@@ -306,7 +306,7 @@ export default function Game() {
             >
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
-                  isTarget ? "ring-1 ring-yellow-400" : ""
+                  isTarget ? "ring-1 ring-yellow-400 z-10" : ""
                 }`}
                 style={{ fontSize: 18 }}
               >
