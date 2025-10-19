@@ -11,6 +11,10 @@ export default function Game() {
   const startTime = useRef(Date.now());
   const totalGameSeconds = 340; // 4 minutes target difficulty ramp
   const [elapsed, setElapsed] = useState(0);
+  // refs for spawn control and death detection
+  const spawnTimeoutRef = useRef(null);
+  const scheduleNextRef = useRef(null);
+  const prevAliveRef = useRef({});
 
   // game dimensions (px) - keep stable refs so effects don't require them as deps
   const dims = useRef({ width: 600, height: 600, playerRadius: 22 });
@@ -67,7 +71,7 @@ export default function Game() {
       }
     }
 
-    function spawnEnemy(phase) {
+    function spawnEnemy(phase, isBurst = false) {
       const angle = Math.random() * Math.PI * 2;
       const x = cx + Math.cos(angle) * spawnRadius;
       const y = cy + Math.sin(angle) * spawnRadius;
@@ -79,9 +83,11 @@ export default function Game() {
 
       // Use phase-based speed with variety
       const [minSpeed, maxSpeed] = phase.speedRange;
-      const baseSpeed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+      let baseSpeed = minSpeed + Math.random() * (maxSpeed - minSpeed);
       const varietyFactor = 1 + (Math.random() - 0.5) * phase.variety;
-      const finalSpeed = baseSpeed * varietyFactor;
+      let finalSpeed = baseSpeed * varietyFactor;
+      // burst-spawned enemies are a bit slower so bursts are manageable
+      if (isBurst) finalSpeed *= 0.65;
 
       return {
         id: nextId.current++,
@@ -106,13 +112,13 @@ export default function Game() {
       // Determine if this is a burst spawn
       const burstSize =
         Math.random() < phase.burstChance
-          ? Math.floor(Math.random() * 3) + 1 // 1-3 zombies
+          ? Math.floor(Math.random() * 3) + 1
           : 1;
 
-      // Spawn zombie(s)
+      // Spawn zombie(s) — if burst, mark them slower
       const newEnemies = [];
       for (let i = 0; i < burstSize; i++) {
-        newEnemies.push(spawnEnemy(phase));
+        newEnemies.push(spawnEnemy(phase, burstSize > 1));
       }
       setEnemies((prev) => [...prev, ...newEnemies]);
 
@@ -123,16 +129,18 @@ export default function Game() {
       setEnemies((current) => {
         const aliveCount = current.filter((e) => e.alive && !e.reached).length;
         if (aliveCount > 20) delay *= 1.5;
-        else if (aliveCount < 5) delay *= 0.7;
+        else if (aliveCount < 5) delay *= 0.85;
         return current;
       });
 
       // If burst, add small delay between spawns in burst
       if (burstSize > 1) {
-        delay = 150; // Quick successive spawns in burst
+        // small gap between burst members but they were already slower
+        delay = 220;
       }
 
-      timeout = setTimeout(scheduleNext, delay);
+      // schedule next spawn and keep ref
+      spawnTimeoutRef.current = setTimeout(scheduleNext, delay);
     }
 
     // Initial spawn with phase-appropriate delay
@@ -141,10 +149,12 @@ export default function Game() {
     const [minInit, maxInit] = initialPhase.spawnInterval;
     const initialDelay = Math.random() * (maxInit - minInit) + minInit;
 
-    let timeout = setTimeout(scheduleNext, initialDelay);
+    spawnTimeoutRef.current = setTimeout(scheduleNext, initialDelay);
+    // keep ref to schedule function so other effects can trigger an immediate spawn
+    scheduleNextRef.current = scheduleNext;
     return () => {
       mounted = false;
-      clearTimeout(timeout);
+      clearTimeout(spawnTimeoutRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -185,6 +195,24 @@ export default function Game() {
 
   // find nearest enemy to player center IMPROVE THIS TO ADD TRACKER UI
   useEffect(() => {
+    // detect when any previously-alive enemy becomes dead/reached and trigger immediate spawn
+    const aliveMap = {};
+    enemies.forEach((e) => {
+      if (e.alive && !e.reached) aliveMap[e.id] = true;
+    });
+
+    // compare with prevAliveRef to find transitions
+    const prevAlive = prevAliveRef.current || {};
+    const died = Object.keys(prevAlive).some((id) => !aliveMap[id]);
+    prevAliveRef.current = aliveMap;
+    if (died) {
+      // clear any scheduled spawn and fire immediate spawn
+      if (spawnTimeoutRef.current) clearTimeout(spawnTimeoutRef.current);
+      if (typeof scheduleNextRef.current === "function") {
+        scheduleNextRef.current();
+      }
+    }
+
     const { width, height } = dims.current;
     const cxLocal = width / 2;
     const cyLocal = height / 2;
