@@ -220,7 +220,6 @@ export const hardWords = [
   "language",
   "creature",
   "galaxy",
-  "rhythm",
   "signal",
   "village",
   "symbol",
