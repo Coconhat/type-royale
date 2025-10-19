@@ -1,15 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
-const words = [
-  "example",
-  "words",
-  "for",
-  "the",
-  "game",
-  "react",
-  "type",
-  "royale",
-];
+import { allWords } from "../libs/words";
 
 export default function Game() {
   const [enemies, setEnemies] = useState([]);
@@ -94,7 +85,7 @@ export default function Game() {
 
       return {
         id: nextId.current++,
-        word: words[Math.floor(Math.random() * words.length)],
+        word: allWords[Math.floor(Math.random() * allWords.length)],
         x,
         y,
         ux,
