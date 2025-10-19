@@ -39,6 +39,7 @@ export default function Game() {
           speedRange: [0.3, 0.5],
           burstChance: 0,
           variety: 0.2,
+          max: 5,
         };
       } else if (progress < 0.35) {
         return {
@@ -46,6 +47,7 @@ export default function Game() {
           speedRange: [0.5, 0.9],
           burstChance: 0.1,
           variety: 0.4,
+          max: 6,
         };
       } else if (progress < 0.6) {
         return {
@@ -53,6 +55,7 @@ export default function Game() {
           speedRange: [0.8, 1.4],
           burstChance: 0.15,
           variety: 0.6,
+          max: 7,
         };
       } else if (progress < 0.85) {
         return {
@@ -60,6 +63,7 @@ export default function Game() {
           speedRange: [1.2, 2.0],
           burstChance: 0.25,
           variety: 0.8,
+          max: 7,
         };
       } else {
         return {
@@ -67,6 +71,7 @@ export default function Game() {
           speedRange: [1.8, 3.5],
           burstChance: 0.4,
           variety: 1.0,
+          max: 7,
         };
       }
     }
