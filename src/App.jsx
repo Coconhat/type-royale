@@ -1,149 +1,160 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Game from "../components/Game";
+import Multiplayer from "../components/MultiplayerClient";
+import useSocket from "../hooks/useSocket";
+import MultiplayerClient from "../components/MultiplayerClient";
 
 export default function StartPage() {
-  const [isHovered, setIsHovered] = useState(false);
   const [start, setStart] = useState(false);
+  const [finding, setFinding] = useState(false);
+  const [findSeconds, setFindSeconds] = useState(0);
+  const [autoCountdown, setAutoCountdown] = useState(null);
 
-  if (start) return <Game />;
+  // create a single socket hook instance here and pass it down to children
+  const socketHook = useSocket("https://type-royale-backend.onrender.com/");
+  const { connected, match, joinQueue, leaveQueue, ready } = socketHook;
+
+  // Start local timer while searching for match
+  useEffect(() => {
+    let t;
+    if (finding) {
+      setFindSeconds(0);
+      t = setInterval(() => setFindSeconds((s) => s + 1), 1000);
+    }
+    return () => clearInterval(t);
+  }, [finding]);
+
+  // When a match is found, immediately start the countdown and mount Multiplayer
+  // The Multiplayer component will send "ready" and wait for matchStart from server
+  useEffect(() => {
+    if (match) {
+      setFinding(false);
+      // Short countdown before starting
+      setAutoCountdown(2);
+      const cd = setInterval(() => {
+        setAutoCountdown((c) => {
+          if (c === 1) {
+            clearInterval(cd);
+            setAutoCountdown(null);
+            setStart(true);
+            return null;
+          }
+          return c - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(cd);
+    }
+  }, [match]);
+
+  // Handle game over in multiplayer - return to home
+  const handleGameOver = () => {
+    leaveQueue();
+    setStart(false);
+    setFinding(false);
+    setAutoCountdown(null);
+  };
+
+  // If the user manually starts single-player, go to Game (no socketData)
+  if (start && !match) return <Game />;
+  // If matched, render Multiplayer component with socketHook
+  if (match)
+    return (
+      <MultiplayerClient socketData={socketHook} onGameOver={handleGameOver} />
+    );
+  // If start was pressed in presence of a match, the above handles mounting Multiplayer
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 flex items-center justify-center p-8 relative overflow-hidden">
-      {/* LEGO studs background pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="grid grid-cols-12 gap-8 h-full w-full p-8">
-          {[...Array(48)].map((_, i) => (
-            <div
-              key={i}
-              className="rounded-full bg-white"
-              style={{ aspectRatio: "1" }}
-            />
-          ))}
-        </div>
-      </div>
+    <div className="mx-auto text-center mt-9">
+      <h1 className="p-5 font-bold text-slate-900  text-3xl">
+        Welcome to Type Royale
+      </h1>
+      <p className="p-5 font-mono text-slate-900 text-bold text-3xl">
+        Get ready to test your typing skills!
+      </p>
 
-      {/* Main LEGO brick container */}
-      <div className="relative z-10 max-w-2xl w-full">
-        {/* Top studs */}
-        <div className="flex justify-center gap-6 mb-4">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="w-12 h-12 bg-yellow-400 rounded-full shadow-lg border-4 border-yellow-500"
-            />
-          ))}
-        </div>
+      {/* MATCHMAKING CONTROLS */}
+      <div className="flex items-center gap-2 justify-center mt-4">
+        {!finding && !match && (
+          <button
+            onClick={() => {
+              joinQueue();
+              setFinding(true);
+            }}
+            className="px-3 py-1 bg-blue-600 text-white rounded"
+          >
+            Find Match
+          </button>
+        )}
 
-        {/* Main brick body */}
-        <div className="bg-yellow-400 rounded-3xl p-12 shadow-2xl border-8 border-yellow-500 relative">
-          {/* Side shadow lines for depth */}
-          <div className="absolute left-0 top-8 bottom-8 w-2 bg-yellow-600 rounded-l-xl" />
-          <div className="absolute right-0 top-8 bottom-8 w-2 bg-yellow-600 rounded-r-xl" />
-
-          {/* Content */}
-          <div className="text-center space-y-8">
-            {/* Title */}
-            <h1 className="text-6xl font-black text-white drop-shadow-lg tracking-tight">
-              TYPE ROYALE
-            </h1>
-
-            {/* Decorative divider */}
-            <div className="flex justify-center gap-2">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="relative">
-                  <div className="w-8 h-2 bg-red-500 rounded-sm" />
-                  <div className="flex justify-center gap-1 mt-0.5">
-                    <div className="w-2 h-2 bg-red-600 rounded-full" />
-                    <div className="w-2 h-2 bg-red-600 rounded-full" />
-                  </div>
-                </div>
-              ))}
+        {/* Finding match box */}
+        {finding && !match && (
+          <div className="p-4 border rounded-md bg-white/90">
+            <div className="font-medium">Finding match...</div>
+            <div className="text-sm text-slate-600">
+              Elapsed: {findSeconds}s
             </div>
-
-            <p className="text-2xl font-bold text-blue-900">
-              Build Your Typing Speed, Brick by Brick!
-            </p>
-
-            {/* LEGO-style button */}
-            <div
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
-              className="relative group mt-8 cursor-pointer select-none"
-              onClick={() => setStart(true)}
-            >
-              {/* Button studs */}
-              <div className="flex justify-center gap-4 mb-2">
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-8 h-8 rounded-full shadow-md border-3 transition-all duration-200 ${
-                      isHovered
-                        ? "bg-green-300 border-green-400"
-                        : "bg-green-400 border-green-500"
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {/* Button body */}
-              <div
-                className={`px-16 py-6 rounded-2xl border-6 font-black text-3xl shadow-xl transition-all duration-200 transform ${
-                  isHovered
-                    ? "bg-green-400 border-green-500 -translate-y-1 shadow-2xl"
-                    : "bg-green-500 border-green-600 translate-y-0"
-                }`}
+            <div className="mt-2 flex gap-2 justify-center">
+              <button
+                onClick={() => {
+                  leaveQueue();
+                  setFinding(false);
+                }}
+                className="px-3 py-1 bg-red-600 text-white rounded"
               >
-                <span className="text-white drop-shadow-md">START GAME</span>
-              </div>
-            </div>
-
-            {/* Fun stats placeholder */}
-            <div className="flex justify-center gap-6 mt-12">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="text-center">
-                  <div className="flex justify-center gap-1 mb-1">
-                    <div className="w-3 h-3 bg-gray-400 rounded-full" />
-                    <div className="w-3 h-3 bg-gray-400 rounded-full" />
-                  </div>
-                  <div className="bg-gray-400 rounded-lg px-4 py-2 border-3">
-                    <div className="text-white font-bold text-lg">--</div>
-                    <div className="text-white text-xs font-semibold">STAT</div>
-                  </div>
-                </div>
-              ))}
+                Cancel
+              </button>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Bottom studs */}
-        <div className="flex justify-center gap-6 mt-4">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="w-12 h-12 bg-yellow-400 rounded-full shadow-lg border-4 border-yellow-500"
-            />
-          ))}
-        </div>
+        {/* Matched small card while countdown runs */}
+        {match && (
+          <div className="p-4 border rounded-md bg-white/95 flex items-center gap-3">
+            <div className="text-sm">
+              Matched vs {match.opponent?.id?.slice(0, 6) || "Opponent"}
+            </div>
+            {autoCountdown !== null ? (
+              <div className="text-lg font-bold">
+                Starting in {autoCountdown}s
+              </div>
+            ) : (
+              <div className="text-sm text-green-600">Starting...</div>
+            )}
+            <button
+              onClick={() => {
+                // allow manual start/ready if you want
+                if (match?.roomId) ready(match.roomId);
+                setStart(true);
+              }}
+              className="px-3 py-1 bg-green-600 text-white rounded"
+            >
+              Start Now
+            </button>
+            <button
+              onClick={() => {
+                // allow leaving match/queue
+                leaveQueue();
+                setFinding(false);
+                setStart(false);
+              }}
+              className="px-3 py-1 bg-red-600 text-white rounded"
+            >
+              Leave
+            </button>
+          </div>
+        )}
+
+        <div className="text-xs ml-3">{connected ? "Online" : "Offline"}</div>
       </div>
 
-      {/* Floating LEGO pieces */}
-      <div
-        className="absolute top-10 left-10 animate-bounce"
-        style={{ animationDelay: "0s", animationDuration: "3s" }}
-      >
-        <div className="w-16 h-16 bg-red-500 rounded-lg border-4 border-red-600 shadow-xl" />
-      </div>
-      <div
-        className="absolute bottom-20 right-20 animate-bounce"
-        style={{ animationDelay: "1s", animationDuration: "4s" }}
-      >
-        <div className="w-20 h-20 bg-blue-500 rounded-lg border-4 border-blue-600 shadow-xl" />
-      </div>
-      <div
-        className="absolute top-1/3 right-10 animate-bounce"
-        style={{ animationDelay: "0.5s", animationDuration: "3.5s" }}
-      >
-        <div className="w-12 h-12 bg-green-500 rounded-lg border-4 border-green-600 shadow-xl" />
+      <div className="mt-6">
+        <button
+          className="p-5 font-mono bg-slate-300 text-slate-900 text-bold text-3xl hover:bg-slate-600 rounded-3xl"
+          onClick={() => setStart(true)}
+        >
+          Start Solo
+        </button>
       </div>
     </div>
   );
