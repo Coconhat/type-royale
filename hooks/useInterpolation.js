@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-/**
- * Like Tetris.io: smoothly interpolate server positions for fluid motion.
- * Takes server enemies and returns interpolated positions that update every frame.
- */
 export default function useInterpolation(serverEnemies) {
   const [interpolated, setInterpolated] = useState([]);
   const animFrameRef = useRef(null);

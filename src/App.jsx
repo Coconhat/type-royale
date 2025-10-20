@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Game from "../components/Game";
-import Multiplayer from "../components/Multiplayer";
+import Multiplayer from "../components/MultiplayerClient";
 import useSocket from "../hooks/useSocket";
+import MultiplayerClient from "../components/MultiplayerClient";
 
 export default function StartPage() {
   const [start, setStart] = useState(false);
@@ -57,7 +58,10 @@ export default function StartPage() {
   // If the user manually starts single-player, go to Game (no socketData)
   if (start && !match) return <Game />;
   // If matched, render Multiplayer component with socketHook
-  if (match) return <Multiplayer socketData={socketHook} onGameOver={handleGameOver} />;
+  if (match)
+    return (
+      <MultiplayerClient socketData={socketHook} onGameOver={handleGameOver} />
+    );
   // If start was pressed in presence of a match, the above handles mounting Multiplayer
 
   return (
