@@ -1,35 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { allWords } from "../libs/words";
-import { initAudio, loadGunshot, playGunshot } from "../libs/gunshot";
-import useInterpolation from "../hooks/useInterpolation";
-// Game expects socketData to be passed from parent when used in multiplayer mode.
-// Do not call useSocket here to avoid duplicate socket connections.
-export default function Game({ socketData, onGameOver } = {}) {
+
+export default function Game() {
   const [enemies, setEnemies] = useState([]);
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
   const nextId = useRef(0);
-
-  // socketData should be passed from parent (App). If not provided, treat as
-  // offline single-player (connected=false).
-  const {
-    connected = false,
-    match = null,
-    serverEnemies = [],
-    roomPlayers = null,
-    sendHit = () => {},
-  } = socketData || {};
-
-  // Use interpolation for smooth multiplayer movement (like Tetris.io)
-  const interpolatedEnemies = useInterpolation(serverEnemies);
-  const displayEnemies = connected && match ? interpolatedEnemies : enemies;
+  // (health/gameOver declarations are added further below)
 
   // game timing (adjust totalGameSeconds to 180 for 3min or 240 for 4min)
   const startTime = useRef(Date.now());
   const totalGameSeconds = 340; // 4 minutes target difficulty ramp
   const [elapsed, setElapsed] = useState(0);
-
+  const audioCtxRef = useRef(null);
+  const sampleBufferRef = useRef(null);
+  const attemptedLoadRef = useRef(false);
   // player health and game state
   const [hearts, setHearts] = useState(3);
   const [gameOver, setGameOver] = useState(false);
@@ -41,26 +27,116 @@ export default function Game({ socketData, onGameOver } = {}) {
     gameOverRef.current = gameOver;
   }, [gameOver]);
 
-  useEffect(() => {
-    // prefetch sample (best-effort)
-    loadGunshot("/gunshot.wav").catch(() => {
-      /* ignore, fallback synth will be used */
-    });
+  function playGunshot() {
+    try {
+      if (!audioCtxRef.current)
+        audioCtxRef.current = new (window.AudioContext ||
+          window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
 
-    // Many browsers require a user gesture to unlock audio. Resume on first click/keydown.
-    const resume = async () => {
+      // If we have a decoded sample buffer, play it (preferred)
+      if (sampleBufferRef.current) {
+        const src = ctx.createBufferSource();
+        src.buffer = sampleBufferRef.current;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.9, ctx.currentTime);
+        src.connect(gain).connect(ctx.destination);
+        src.start();
+        return;
+      }
+
+      // Fallback: synthesize short gunshot-like noise + thump
+      const now = ctx.currentTime;
+      const duration = 0.22;
+
+      // noise burst
+      const bufferSize = Math.floor(ctx.sampleRate * duration);
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        const env = Math.pow(1 - i / bufferSize, 2);
+        data[i] = (Math.random() * 2 - 1) * env * 0.6;
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(1, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+      // low thump
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + duration);
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.8, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      noise.connect(noiseGain).connect(ctx.destination);
+      osc.connect(oscGain).connect(ctx.destination);
+      noise.start(now);
+      osc.start(now);
+      noise.stop(now + duration);
+      osc.stop(now + duration);
+    } catch (err) {
+      // audio may be blocked by browser until user gesture; ignore errors
+      if (typeof console !== "undefined" && console.debug)
+        console.debug("playGunshot error", err);
+    }
+  }
+
+  // Prefetch and decode a WAV sample from /gunshot.wav
+  useEffect(() => {
+    // only try once
+    if (attemptedLoadRef.current) return;
+    attemptedLoadRef.current = true;
+
+    // lazy init audio context only for decoding (no resume required yet)
+    try {
+      if (!audioCtxRef.current)
+        audioCtxRef.current = new (window.AudioContext ||
+          window.webkitAudioContext)();
+      const ctx = audioCtxRef.current;
+
+      fetch("/gunshot.wav")
+        .then((res) => {
+          if (!res.ok) throw new Error("Sample not found");
+          return res.arrayBuffer();
+        })
+        .then((arr) => ctx.decodeAudioData(arr))
+        .then((decoded) => {
+          sampleBufferRef.current = decoded;
+        })
+        .catch((err) => {
+          //fall back to synthesized sound if cant read sample
+          if (typeof console !== "undefined" && console.debug)
+            console.debug("sample load error", err);
+        });
+    } catch (err) {
+      if (typeof console !== "undefined" && console.debug)
+        console.debug("sample fetch init error", err);
+    }
+  }, []);
+
+  // Ensure AudioContext is resumed on first user gesture in browsers that require activity
+  useEffect(() => {
+    const resume = () => {
       try {
-        const ctx = await initAudio();
-        if (typeof ctx.resume === "function") await ctx.resume();
-      } catch {
-        /* ignore */
+        if (
+          audioCtxRef.current &&
+          typeof audioCtxRef.current.resume === "function"
+        ) {
+          audioCtxRef.current.resume();
+        }
+      } catch (err) {
+        if (typeof console !== "undefined" && console.debug)
+          console.debug("resume error", err);
       }
       window.removeEventListener("click", resume);
       window.removeEventListener("keydown", resume);
     };
     window.addEventListener("click", resume, { once: true });
     window.addEventListener("keydown", resume, { once: true });
-
     return () => {
       window.removeEventListener("click", resume);
       window.removeEventListener("keydown", resume);
@@ -81,15 +157,7 @@ export default function Game({ socketData, onGameOver } = {}) {
   const playerRadius = dims.current.playerRadius;
 
   // spawn an enemy on the circle perimeter at random angle with dynamic spawn interval
-  // In multiplayer matches the server is authoritative for spawning/movement,
-  // so skip local spawn scheduling when connected to a match.
   useEffect(() => {
-    if (connected && match) {
-      // clear any local timers just in case and don't schedule new spawns
-      if (spawnTimeoutRef.current) clearTimeout(spawnTimeoutRef.current);
-      scheduleNextRef.current = null;
-      return;
-    }
     let mounted = true;
 
     // Get difficulty parameters based on current phase
@@ -179,9 +247,18 @@ export default function Game({ socketData, onGameOver } = {}) {
       const elapsedSec = Math.floor((now - startTime.current) / 1000);
       const phase = getDifficultyPhase(elapsedSec);
 
-      // Spawn a single zombie (restore original single-spawn algorithm)
-      const newEnemy = spawnEnemy(phase, false);
-      setEnemies((prev) => [...prev, newEnemy]);
+      // Determine if this is a burst spawn
+      const burstSize =
+        Math.random() < phase.burstChance
+          ? Math.floor(Math.random() * 3) + 1
+          : 1;
+
+      // Spawn zombie(s) — if burst, mark them slower
+      const newEnemies = [];
+      for (let i = 0; i < burstSize; i++) {
+        newEnemies.push(spawnEnemy(phase, burstSize > 1));
+      }
+      setEnemies((prev) => [...prev, ...newEnemies]);
 
       // Adaptive delay based on alive count
       const [minDelay, maxDelay] = phase.spawnInterval;
@@ -194,7 +271,11 @@ export default function Game({ socketData, onGameOver } = {}) {
         return current;
       });
 
-      // (no burst handling - single spawn)
+      // If burst, add small delay between spawns in burst
+      if (burstSize > 1) {
+        // small gap between burst members but they were already slower
+        delay = 220;
+      }
 
       // schedule next spawn and keep ref
       spawnTimeoutRef.current = setTimeout(scheduleNext, delay);
@@ -221,16 +302,6 @@ export default function Game({ socketData, onGameOver } = {}) {
   function startMovement() {
     // clear existing interval if any
     if (moveIntervalRef.current) clearInterval(moveIntervalRef.current);
-
-    // If we're in a multiplayer match, the server is authoritative for movement
-    // and we should not run a local movement loop.
-    if (connected && match) {
-      if (moveIntervalRef.current) {
-        clearInterval(moveIntervalRef.current);
-        moveIntervalRef.current = null;
-      }
-      return;
-    }
 
     const tickMs = 60; // zombie tick
     const move = setInterval(() => {
@@ -295,28 +366,6 @@ export default function Game({ socketData, onGameOver } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // If match status changes, ensure we stop the local simulation when joined,
-  // and restart it when leaving a match.
-  useEffect(() => {
-    if (connected && match) {
-      if (moveIntervalRef.current) {
-        clearInterval(moveIntervalRef.current);
-        moveIntervalRef.current = null;
-      }
-      // also clear spawn scheduling
-      if (spawnTimeoutRef.current) {
-        clearTimeout(spawnTimeoutRef.current);
-        spawnTimeoutRef.current = null;
-      }
-    } else {
-      // not in match -> ensure local simulation is running
-      startMovement();
-      if (typeof scheduleNextRef.current === "function")
-        scheduleNextRef.current();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, match]);
-
   // find nearest enemy to player center IMPROVE THIS TO ADD TRACKER UI
   useEffect(() => {
     // detect when any previously-alive enemy becomes dead/reached and trigger immediate spawn
@@ -340,7 +389,7 @@ export default function Game({ socketData, onGameOver } = {}) {
     const { width, height } = dims.current;
     const cxLocal = width / 2;
     const cyLocal = height / 2;
-    const alive = displayEnemies.filter((e) => e.alive && !e.reached);
+    const alive = enemies.filter((e) => e.alive && !e.reached);
     if (alive.length > 0) {
       const nearest = alive.reduce((a, b) => {
         const da = Math.hypot(a.x - cxLocal, a.y - cyLocal);
@@ -351,27 +400,20 @@ export default function Game({ socketData, onGameOver } = {}) {
     } else {
       setTarget(null);
     }
-  }, [displayEnemies, enemies]);
+  }, [enemies]);
 
   // check typed word kills target
   useEffect(() => {
     if (!target) return;
-
     if (input === target.word) {
-      // if we're online in a match, let server validate the kill
-      if (connected && match?.roomId) {
-        sendHit(match.roomId, target.id, target.word);
-      } else {
-        // fallback: local single-player behavior
-        setEnemies((prev) =>
-          prev.map((e) => (e.id === target.id ? { ...e, alive: false } : e))
-        );
-      }
-
+      setEnemies((prev) =>
+        prev.map((e) => (e.id === target.id ? { ...e, alive: false } : e))
+      );
       setInput("");
+      // play gunshot sound on success
       playGunshot();
     }
-  }, [input, target, connected, match, sendHit]);
+  }, [input, target]);
 
   // keyboard input (typing)
   useEffect(() => {
@@ -391,222 +433,76 @@ export default function Game({ socketData, onGameOver } = {}) {
     ? Math.hypot(target.x - cx, target.y - cy)
     : null;
 
-  // If we're in a multiplayer match and server provided player info, derive hearts
-  const serverPlayer =
-    connected && match && roomPlayers
-      ? // roomPlayers may be an array or object depending on server; try array first
-        Array.isArray(roomPlayers)
-        ? roomPlayers.find((p) => p.id === match.playerId)
-        : roomPlayers?.[match.playerId]
-      : null;
-
-  const opponentPlayer =
-    connected && match && roomPlayers
-      ? Array.isArray(roomPlayers)
-        ? roomPlayers.find((p) => p.id === match.opponentId)
-        : roomPlayers?.[match.opponentId]
-      : null;
-
-  const displayHearts = serverPlayer?.heart ?? hearts;
-  const displayKills = serverPlayer?.kills ?? 0;
-  const opponentHearts = opponentPlayer?.heart ?? 3;
-  const opponentKills = opponentPlayer?.kills ?? 0;
-
-  // Detect game over in multiplayer when hearts reach 0 OR match ends
-  useEffect(() => {
-    if (connected && match) {
-      // Check if match ended (either player lost)
-      if (match.ended && !gameOver) {
-        setGameOver(true);
-        if (onGameOver) {
-          // Delay to show win/loss screen
-          setTimeout(() => onGameOver(), 3000);
-        }
-      }
-      // Or check if this player's hearts reached 0
-      else if (displayHearts <= 0 && !gameOver && !match.ended) {
-        setGameOver(true);
-      }
-    }
-  }, [connected, match, displayHearts, gameOver, onGameOver]);
-
-  // Determine win/loss status for display
-  const isWinner =
-    connected && match?.ended && match.winnerId === match.playerId;
-
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
-      <div className="text-center mx-auto">
-        <h2 className="text-2xl font-bold">Type royale 🧟</h2>
+      <h2 className="text-2xl font-bold">Type royale 🧟</h2>
 
-        {/* Hearts HUD */}
-        <div className="flex items-center justify-center gap-2 mt-2 ">
-          <div className="font-medium">Hearts:</div>
-          <div className="text-xl">
-            {Array.from({ length: displayHearts }).map((_, i) => (
-              <span key={i} className="text-red-500 mr-1">
-                ❤️
-              </span>
-            ))}
-            {displayHearts === 0 && (
-              <span className="text-sm text-slate-400"> (0)</span>
-            )}
-          </div>
+      {/* Hearts HUD */}
+      <div className="flex items-center gap-2 mt-2">
+        <div className="font-medium">Hearts:</div>
+        <div className="text-xl">
+          {Array.from({ length: hearts }).map((_, i) => (
+            <span key={i} className="text-red-500 mr-1">
+              ❤️
+            </span>
+          ))}
+          {hearts === 0 && <span className="text-sm text-slate-400"> (0)</span>}
         </div>
       </div>
 
-      {/* If in a multiplayer match, show split-screen (player | opponent) */}
-      {connected && match ? (
-        <div className="flex gap-3 mt-4">
-          {/* Player POV */}
-          <div className="flex-1">
-            <div className="mb-2 text-sm font-semibold text-center">
-              You - ❤️ {displayHearts} | 🎯 {displayKills} kills
-            </div>
-            <div
-              className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
-              style={{ width, height, background: "#000" }}
-            >
-              <div
-                title="player"
-                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
-                style={{
-                  left: cx,
-                  top: cy,
-                  width: playerRadius * 2,
-                  height: playerRadius * 2,
-                  borderRadius: "50%",
-                  background: "linear-gradient(180deg,#fff,#ffd36b)",
-                  border: "3px solid #333",
-                }}
-              >
-                ⌨️
-              </div>
-
-              {displayEnemies.map((e) => {
-                // Use interpolated position for smooth movement in multiplayer
-                const posX = e.displayX ?? e.x;
-                const posY = e.displayY ?? e.y;
-                return (
-                  <div
-                    key={e.id}
-                    title={e.word}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
-                    style={{
-                      left: posX,
-                      top: posY,
-                      opacity: e.alive ? 1 : 0.35,
-                    }}
-                  >
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-emerald-400 border-slate-800 shadow`}
-                      style={{ fontSize: 18 }}
-                    >
-                      🧟
-                    </div>
-                    <div className="text-center mt-1 text-xs text-white">
-                      {e.alive ? e.word : "DEAD"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Opponent POV (spectator view - shows stats only) */}
-          <div className="flex-1">
-            <div className="mb-2 text-sm font-semibold text-center">
-              Opponent - ❤️ {opponentHearts} | 🎯 {opponentKills} kills
-            </div>
-            <div
-              className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
-              style={{ width, height, background: "#111" }}
-            >
-              {/* Opponent player character in center */}
-              <div
-                title="opponent"
-                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
-                style={{
-                  left: cx,
-                  top: cy,
-                  width: playerRadius * 2,
-                  height: playerRadius * 2,
-                  borderRadius: "50%",
-                  background: "linear-gradient(180deg,#60a5fa,#3b82f6)",
-                  border: "3px solid #1e3a8a",
-                }}
-              >
-                🎮
-              </div>
-
-              {/* Spectator view - no enemy details shown */}
-              <div className="text-slate-500 text-sm text-center px-4">
-                <div className="mb-2">👁️ Spectator View</div>
-                <div className="text-xs">
-                  You cannot see opponent enemies or words.
-                  <br />
-                  Watch their stats above!
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        // single-player view
+      <div
+        className="mt-3 rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
+        style={{
+          width,
+          height,
+          background: "#000000",
+        }}
+      >
+        {/* player in center */}
         <div
-          className="mt-3 rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
+          title="player"
+          className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
           style={{
-            width,
-            height,
-            background: "#000000",
+            left: cx,
+            top: cy,
+            width: playerRadius * 2,
+            height: playerRadius * 2,
+            borderRadius: "50%",
+            background: "linear-gradient(180deg,#fff,#ffd36b)",
+            border: "3px solid #333",
           }}
         >
-          {/* player in center */}
-          <div
-            title="player"
-            className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
-            style={{
-              left: cx,
-              top: cy,
-              width: playerRadius * 2,
-              height: playerRadius * 2,
-              borderRadius: "50%",
-              background: "linear-gradient(180deg,#fff,#ffd36b)",
-              border: "3px solid #333",
-            }}
-          >
-            ⌨️
-          </div>
-
-          {/* enemies */}
-          {enemies.map((e) => {
-            const isTarget = target && target.id === e.id;
-            const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
-            return (
-              <div
-                key={e.id}
-                title={e.word}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
-                  target && target.id === e.id ? "z-10" : ""
-                }`}
-                style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
-              >
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
-                    isTarget ? "ring-1 ring-yellow-400 z-10" : ""
-                  }`}
-                  style={{ fontSize: 18 }}
-                >
-                  🧟
-                </div>
-                <div className="text-center mt-1 text-xs text-white">
-                  {e.alive ? e.word : "DEAD"}
-                </div>
-              </div>
-            );
-          })}
+          ⌨️
         </div>
-      )}
+
+        {/* enemies */}
+        {enemies.map((e) => {
+          const isTarget = target && target.id === e.id;
+          const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
+          return (
+            <div
+              key={e.id}
+              title={e.word}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
+                target && target.id === e.id ? "z-10" : ""
+              }`}
+              style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
+            >
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
+                  isTarget ? "ring-1 ring-yellow-400 z-10" : ""
+                }`}
+                style={{ fontSize: 18 }}
+              >
+                🧟
+              </div>
+              <div className="text-center mt-1 text-xs text-white">
+                {e.alive ? e.word : "DEAD"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* tracker box outside the game area */}
       <div className="mt-3 p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-md flex items-center gap-3 border border-slate-300 dark:border-slate-700">
@@ -625,7 +521,7 @@ export default function Game({ socketData, onGameOver } = {}) {
           <div className="text-xs text-slate-400">Time: {elapsed}s</div>
         </div>
         <div className="ml-auto text-sm text-slate-600 dark:text-slate-300">
-          Enemies: {displayEnemies.filter((e) => e.alive).length}
+          Enemies: {enemies.filter((e) => e.alive).length}
         </div>
       </div>
 
@@ -633,71 +529,32 @@ export default function Game({ socketData, onGameOver } = {}) {
         <div>Target: {target?.word || "none"}</div>
         <div>Input: {input}</div>
         <div className="ml-auto">
-          Enemies: {displayEnemies.filter((e) => e.alive).length}
+          Enemies: {enemies.filter((e) => e.alive).length}
         </div>
       </div>
-
       {/* Game over overlay */}
       {gameOver && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg text-center min-w-[300px]">
-            {connected && match?.ended ? (
-              // Multiplayer match ended
-              <>
-                <h3
-                  className={`text-3xl font-bold mb-4 ${
-                    isWinner ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {isWinner ? "🎉 Victory! 🎉" : "💀 Defeat 💀"}
-                </h3>
-                <div className="mb-4 text-lg">
-                  {isWinner
-                    ? "You won the match!"
-                    : "Your opponent survived longer."}
-                </div>
-                <div className="text-sm text-gray-600 mb-4">
-                  Final Score: {displayKills} kills | {displayHearts} ❤️
-                  remaining
-                </div>
-                <button
-                  onClick={() => {
-                    if (onGameOver) onGameOver();
-                  }}
-                  className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-                >
-                  Return to Home
-                </button>
-              </>
-            ) : (
-              // Single-player or local game over
-              <>
-                <h3 className="text-2xl font-bold mb-2">Game Over</h3>
-                <div className="mb-4">You ran out of hearts.</div>
-                <button
-                  onClick={() => {
-                    // In multiplayer, call onGameOver to return to home
-                    if (connected && match && onGameOver) {
-                      onGameOver();
-                    } else {
-                      // Single-player: minimal reset
-                      setEnemies([]);
-                      setHearts(3);
-                      setGameOver(false);
-                      nextId.current = 0;
-                      startTime.current = Date.now();
-                      if (typeof scheduleNextRef.current === "function")
-                        scheduleNextRef.current();
-                      // ensure movement is running after restart
-                      if (typeof startMovement === "function") startMovement();
-                    }
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded"
-                >
-                  {connected && match ? "Return to Home" : "Restart"}
-                </button>
-              </>
-            )}
+          <div className="bg-white p-6 rounded-lg text-center">
+            <h3 className="text-2xl font-bold mb-2">Game Over</h3>
+            <div className="mb-4">You ran out of hearts.</div>
+            <button
+              onClick={() => {
+                // minimal reset
+                setEnemies([]);
+                setHearts(3);
+                setGameOver(false);
+                nextId.current = 0;
+                startTime.current = Date.now();
+                if (typeof scheduleNextRef.current === "function")
+                  scheduleNextRef.current();
+                // ensure movement is running after restart
+                if (typeof startMovement === "function") startMovement();
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded"
+            >
+              Restart
+            </button>
           </div>
         </div>
       )}

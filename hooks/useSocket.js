@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 
-export default function useSocket(serverUrl = "http://localhost:4000") {
+export default function useSocket(
+  serverUrl = "https://type-royale-backend.onrender.com/"
+) {
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
 
@@ -11,20 +13,40 @@ export default function useSocket(serverUrl = "http://localhost:4000") {
   const [roomPlayers, setRoomPlayers] = useState([]);
 
   useEffect(() => {
+    console.log("🔌 Connecting to:", serverUrl);
+
     const socket = io(serverUrl, {
       autoConnect: true,
-      transports: ["websocket"],
+      transports: ["polling", "websocket"], // Try polling first, then upgrade
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
     });
     socketRef.current = socket;
 
     socket.on("connect", () => {
       setConnected(true);
-      console.log("socket connected:", socket.id);
+      console.log("✅ Socket connected:", socket.id);
+      console.log("🚀 Transport:", socket.io.engine.transport.name);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("❌ Connection error:", error.message);
+      console.error("Full error:", error);
     });
 
     socket.on("disconnect", (reason) => {
       setConnected(false);
-      console.log("socket disconnected:", reason);
+      console.log("🔌 Socket disconnected:", reason);
+    });
+
+    socket.io.on("reconnect_attempt", (attempt) => {
+      console.log("🔄 Reconnection attempt #" + attempt);
+    });
+
+    socket.io.on("reconnect", () => {
+      console.log("✅ Reconnected successfully!");
     });
 
     socket.on("matchFound", (payload) => {

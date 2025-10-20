@@ -11,7 +11,7 @@ export default function StartPage() {
   const [autoCountdown, setAutoCountdown] = useState(null);
 
   // create a single socket hook instance here and pass it down to children
-  const socketHook = useSocket("http://localhost:4000"); // change URL to your server
+  const socketHook = useSocket("https://type-royale-backend.onrender.com/");
   const { connected, match, joinQueue, leaveQueue, ready } = socketHook;
 
   // Start local timer while searching for match
