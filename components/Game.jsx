@@ -2,17 +2,23 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { allWords } from "../libs/words";
 import { initAudio, loadGunshot, playGunshot } from "../libs/gunshot";
-import useSocket from "../hooks/useSocket";
-
-export default function Game() {
+// Game expects socketData to be passed from parent when used in multiplayer mode.
+// Do not call useSocket here to avoid duplicate socket connections.
+export default function Game({ socketData } = {}) {
   const [enemies, setEnemies] = useState([]);
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
   const nextId = useRef(0);
 
-  const { connected, match, serverEnemies, roomPlayers, sendHit } = useSocket(
-    "http://localhost:4000"
-  );
+  // socketData should be passed from parent (App). If not provided, treat as
+  // offline single-player (connected=false).
+  const {
+    connected = false,
+    match = null,
+    serverEnemies = [],
+    roomPlayers = null,
+    sendHit = () => {},
+  } = socketData || {};
 
   const displayEnemies = connected && match ? serverEnemies : enemies;
 
@@ -170,18 +176,9 @@ export default function Game() {
       const elapsedSec = Math.floor((now - startTime.current) / 1000);
       const phase = getDifficultyPhase(elapsedSec);
 
-      // Determine if this is a burst spawn
-      const burstSize =
-        Math.random() < phase.burstChance
-          ? Math.floor(Math.random() * 3) + 1
-          : 1;
-
-      // Spawn zombie(s) — if burst, mark them slower
-      const newEnemies = [];
-      for (let i = 0; i < burstSize; i++) {
-        newEnemies.push(spawnEnemy(phase, burstSize > 1));
-      }
-      setEnemies((prev) => [...prev, ...newEnemies]);
+      // Spawn a single zombie (restore original single-spawn algorithm)
+      const newEnemy = spawnEnemy(phase, false);
+      setEnemies((prev) => [...prev, newEnemy]);
 
       // Adaptive delay based on alive count
       const [minDelay, maxDelay] = phase.spawnInterval;
@@ -194,11 +191,7 @@ export default function Game() {
         return current;
       });
 
-      // If burst, add small delay between spawns in burst
-      if (burstSize > 1) {
-        // small gap between burst members but they were already slower
-        delay = 220;
-      }
+      // (no burst handling - single spawn)
 
       // schedule next spawn and keep ref
       spawnTimeoutRef.current = setTimeout(scheduleNext, delay);

@@ -94,6 +94,24 @@ export default function useSocket(serverUrl = "http://localhost:4000") {
     };
   }, [serverUrl]);
 
+  // If we've been matched but haven't received enemies, ask the server for a
+  // room snapshot after a short delay (best-effort recovery from dropped events).
+  useEffect(() => {
+    if (!socketRef.current) return;
+    if (!match) return;
+    const t = setTimeout(() => {
+      if (serverEnemies.length === 0 && socketRef.current) {
+        try {
+          socketRef.current.emit("requestRoomState", { roomId: match.roomId });
+          console.log("[socket] requested roomState for", match?.roomId);
+        } catch (err) {
+          console.warn("[socket] requestRoomState failed", err);
+        }
+      }
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [match, serverEnemies.length]);
+
   /* ---- helper actions ---- */
   const joinQueue = () => socketRef.current?.emit("joinQueue");
   const leaveQueue = () => socketRef.current?.emit("leaveQueue");

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Game from "../components/Game";
+import Multiplayer from "../components/Multiplayer";
 import useSocket from "../hooks/useSocket";
 
 export default function StartPage() {
@@ -8,9 +9,9 @@ export default function StartPage() {
   const [findSeconds, setFindSeconds] = useState(0);
   const [autoCountdown, setAutoCountdown] = useState(null);
 
-  const { connected, match, joinQueue, leaveQueue, ready } = useSocket(
-    "http://localhost:4000"
-  ); // change URL to your server
+  // create a single socket hook instance here and pass it down to children
+  const socketHook = useSocket("http://localhost:4000"); // change URL to your server
+  const { connected, match, joinQueue, leaveQueue, ready } = socketHook;
 
   // Start local timer while searching for match
   useEffect(() => {
@@ -22,15 +23,15 @@ export default function StartPage() {
     return () => clearInterval(t);
   }, [finding]);
 
-  // When a match is found, automatically transition into the Game view.
-  // Optionally, show a short countdown (3s) before starting to allow "ready".
+  // When a match is found, wait until the server has sent the initial enemies
+  // snapshot before auto-starting the match. This prevents rendering an empty
+  // multiplayer view when matchFound arrives but matchStart (with enemies)
+  // hasn't been delivered yet.
   useEffect(() => {
-    if (match) {
-      // If user was searching, stop that UI
+    // socketHook is stable; check serverEnemies property
+    const serverEnemies = socketHook.serverEnemies || [];
+    if (match && serverEnemies.length > 0) {
       setFinding(false);
-
-      // If server sends a roomId immediately, auto-enter Game; otherwise wait for matchStart
-      // We'll do a short 2-second countdown so both players see a brief "matched" state.
       setAutoCountdown(2);
       const cd = setInterval(() => {
         setAutoCountdown((c) => {
@@ -46,12 +47,14 @@ export default function StartPage() {
 
       return () => clearInterval(cd);
     }
-  }, [match]);
+    // if match exists but serverEnemies is still empty, do nothing and wait
+  }, [match, socketHook.serverEnemies]);
 
-  // If the user manually starts single-player, go to Game
+  // If the user manually starts single-player, go to Game (no socketData)
   if (start && !match) return <Game />;
-  // If matched, Game will be shown automatically after countdown; allow Game to mount when start===true
-  if (start && match) return <Game />;
+  // If matched, render Multiplayer component with socketHook
+  if (match) return <Multiplayer socketData={socketHook} />;
+  // If start was pressed in presence of a match, the above handles mounting Multiplayer
 
   return (
     <div className="mx-auto text-center mt-9">
