@@ -2,13 +2,19 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { allWords } from "../libs/words";
 import { initAudio, loadGunshot, playGunshot } from "../libs/gunshot";
+import useSocket from "../hooks/useSocket";
 
 export default function Game() {
   const [enemies, setEnemies] = useState([]);
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
   const nextId = useRef(0);
-  // (health/gameOver declarations are added further below)
+
+  const { connected, match, serverEnemies, roomPlayers, sendHit } = useSocket(
+    "http://localhost:4000"
+  );
+
+  const displayEnemies = connected && match ? serverEnemies : enemies;
 
   // game timing (adjust totalGameSeconds to 180 for 3min or 240 for 4min)
   const startTime = useRef(Date.now());
@@ -37,7 +43,7 @@ export default function Game() {
       try {
         const ctx = await initAudio();
         if (typeof ctx.resume === "function") await ctx.resume();
-      } catch (err) {
+      } catch {
         /* ignore */
       }
       window.removeEventListener("click", resume);
@@ -66,7 +72,15 @@ export default function Game() {
   const playerRadius = dims.current.playerRadius;
 
   // spawn an enemy on the circle perimeter at random angle with dynamic spawn interval
+  // In multiplayer matches the server is authoritative for spawning/movement,
+  // so skip local spawn scheduling when connected to a match.
   useEffect(() => {
+    if (connected && match) {
+      // clear any local timers just in case and don't schedule new spawns
+      if (spawnTimeoutRef.current) clearTimeout(spawnTimeoutRef.current);
+      scheduleNextRef.current = null;
+      return;
+    }
     let mounted = true;
 
     // Get difficulty parameters based on current phase
@@ -212,6 +226,16 @@ export default function Game() {
     // clear existing interval if any
     if (moveIntervalRef.current) clearInterval(moveIntervalRef.current);
 
+    // If we're in a multiplayer match, the server is authoritative for movement
+    // and we should not run a local movement loop.
+    if (connected && match) {
+      if (moveIntervalRef.current) {
+        clearInterval(moveIntervalRef.current);
+        moveIntervalRef.current = null;
+      }
+      return;
+    }
+
     const tickMs = 60; // zombie tick
     const move = setInterval(() => {
       const now = Date.now();
@@ -275,6 +299,28 @@ export default function Game() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // If match status changes, ensure we stop the local simulation when joined,
+  // and restart it when leaving a match.
+  useEffect(() => {
+    if (connected && match) {
+      if (moveIntervalRef.current) {
+        clearInterval(moveIntervalRef.current);
+        moveIntervalRef.current = null;
+      }
+      // also clear spawn scheduling
+      if (spawnTimeoutRef.current) {
+        clearTimeout(spawnTimeoutRef.current);
+        spawnTimeoutRef.current = null;
+      }
+    } else {
+      // not in match -> ensure local simulation is running
+      startMovement();
+      if (typeof scheduleNextRef.current === "function")
+        scheduleNextRef.current();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, match]);
+
   // find nearest enemy to player center IMPROVE THIS TO ADD TRACKER UI
   useEffect(() => {
     // detect when any previously-alive enemy becomes dead/reached and trigger immediate spawn
@@ -314,15 +360,22 @@ export default function Game() {
   // check typed word kills target
   useEffect(() => {
     if (!target) return;
+
     if (input === target.word) {
-      setEnemies((prev) =>
-        prev.map((e) => (e.id === target.id ? { ...e, alive: false } : e))
-      );
+      // if we're online in a match, let server validate the kill
+      if (connected && match?.roomId) {
+        sendHit(match.roomId, target.id, target.word);
+      } else {
+        // fallback: local single-player behavior
+        setEnemies((prev) =>
+          prev.map((e) => (e.id === target.id ? { ...e, alive: false } : e))
+        );
+      }
+
       setInput("");
-      // play gunshot sound on success
       playGunshot();
     }
-  }, [input, target]);
+  }, [input, target, connected, match, sendHit]);
 
   // keyboard input (typing)
   useEffect(() => {
@@ -342,6 +395,17 @@ export default function Game() {
     ? Math.hypot(target.x - cx, target.y - cy)
     : null;
 
+  // If we're in a multiplayer match and server provided player info, derive hearts
+  const serverPlayer =
+    connected && match && roomPlayers
+      ? // roomPlayers may be an array or object depending on server; try array first
+        Array.isArray(roomPlayers)
+        ? roomPlayers.find((p) => p.id === match.playerId)
+        : roomPlayers?.[match.playerId]
+      : null;
+
+  const displayHearts = serverPlayer?.hearts ?? hearts;
+
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
       <div className="text-center mx-auto">
@@ -351,71 +415,150 @@ export default function Game() {
         <div className="flex items-center justify-center gap-2 mt-2 ">
           <div className="font-medium">Hearts:</div>
           <div className="text-xl">
-            {Array.from({ length: hearts }).map((_, i) => (
+            {Array.from({ length: displayHearts }).map((_, i) => (
               <span key={i} className="text-red-500 mr-1">
                 ❤️
               </span>
             ))}
-            {hearts === 0 && (
+            {displayHearts === 0 && (
               <span className="text-sm text-slate-400"> (0)</span>
             )}
           </div>
         </div>
       </div>
 
-      <div
-        className="mt-3 rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
-        style={{
-          width,
-          height,
-          background: "#000000",
-        }}
-      >
-        {/* player in center */}
-        <div
-          title="player"
-          className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
-          style={{
-            left: cx,
-            top: cy,
-            width: playerRadius * 2,
-            height: playerRadius * 2,
-            borderRadius: "50%",
-            background: "linear-gradient(180deg,#fff,#ffd36b)",
-            border: "3px solid #333",
-          }}
-        >
-          ⌨️
-        </div>
-
-        {/* enemies */}
-        {enemies.map((e) => {
-          const isTarget = target && target.id === e.id;
-          const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
-          return (
+      {/* If in a multiplayer match, show split-screen (player | opponent) */}
+      {connected && match ? (
+        <div className="flex gap-3 mt-4">
+          {/* Player POV */}
+          <div className="flex-1">
             <div
-              key={e.id}
-              title={e.word}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
-                target && target.id === e.id ? "z-10" : ""
-              }`}
-              style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
+              className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
+              style={{ width, height, background: "#000" }}
             >
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
-                  isTarget ? "ring-1 ring-yellow-400 z-10" : ""
-                }`}
-                style={{ fontSize: 18 }}
+                title="player"
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
+                style={{
+                  left: cx,
+                  top: cy,
+                  width: playerRadius * 2,
+                  height: playerRadius * 2,
+                  borderRadius: "50%",
+                  background: "linear-gradient(180deg,#fff,#ffd36b)",
+                  border: "3px solid #333",
+                }}
               >
-                🧟
+                ⌨️
               </div>
-              <div className="text-center mt-1 text-xs text-white">
-                {e.alive ? e.word : "DEAD"}
-              </div>
+
+              {displayEnemies.map((e) => (
+                <div
+                  key={e.id}
+                  title={e.word}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+                  style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
+                >
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-emerald-400 border-slate-800 shadow`}
+                    style={{ fontSize: 18 }}
+                  >
+                    🧟
+                  </div>
+                  <div className="text-center mt-1 text-xs text-white">
+                    {e.alive ? e.word : "DEAD"}
+                  </div>
+                </div>
+              ))}
             </div>
-          );
-        })}
-      </div>
+          </div>
+
+          {/* Opponent POV (read-only mirror) */}
+          <div className="flex-1">
+            <div
+              className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
+              style={{ width, height, background: "#111" }}
+            >
+              <div className="absolute top-2 left-2 text-sm text-white">
+                Opponent
+              </div>
+              {displayEnemies.map((e) => (
+                <div
+                  key={"opp-" + e.id}
+                  title={e.word}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+                  style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
+                >
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-sky-400 border-slate-800 shadow`}
+                    style={{ fontSize: 18 }}
+                  >
+                    🧟
+                  </div>
+                  <div className="text-center mt-1 text-xs text-white">
+                    {e.alive ? e.word : "DEAD"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        // single-player view
+        <div
+          className="mt-3 rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
+          style={{
+            width,
+            height,
+            background: "#000000",
+          }}
+        >
+          {/* player in center */}
+          <div
+            title="player"
+            className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
+            style={{
+              left: cx,
+              top: cy,
+              width: playerRadius * 2,
+              height: playerRadius * 2,
+              borderRadius: "50%",
+              background: "linear-gradient(180deg,#fff,#ffd36b)",
+              border: "3px solid #333",
+            }}
+          >
+            ⌨️
+          </div>
+
+          {/* enemies */}
+          {enemies.map((e) => {
+            const isTarget = target && target.id === e.id;
+            const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
+            return (
+              <div
+                key={e.id}
+                title={e.word}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
+                  target && target.id === e.id ? "z-10" : ""
+                }`}
+                style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
+              >
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
+                    isTarget ? "ring-1 ring-yellow-400 z-10" : ""
+                  }`}
+                  style={{ fontSize: 18 }}
+                >
+                  🧟
+                </div>
+                <div className="text-center mt-1 text-xs text-white">
+                  {e.alive ? e.word : "DEAD"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* tracker box outside the game area */}
       <div className="mt-3 p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-md flex items-center gap-3 border border-slate-300 dark:border-slate-700">
@@ -434,7 +577,7 @@ export default function Game() {
           <div className="text-xs text-slate-400">Time: {elapsed}s</div>
         </div>
         <div className="ml-auto text-sm text-slate-600 dark:text-slate-300">
-          Enemies: {enemies.filter((e) => e.alive).length}
+          Enemies: {displayEnemies.filter((e) => e.alive).length}
         </div>
       </div>
 
@@ -442,7 +585,7 @@ export default function Game() {
         <div>Target: {target?.word || "none"}</div>
         <div>Input: {input}</div>
         <div className="ml-auto">
-          Enemies: {enemies.filter((e) => e.alive).length}
+          Enemies: {displayEnemies.filter((e) => e.alive).length}
         </div>
       </div>
 
