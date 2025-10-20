@@ -5,7 +5,7 @@ import { initAudio, loadGunshot, playGunshot } from "../libs/gunshot";
 import useInterpolation from "../hooks/useInterpolation";
 // Game expects socketData to be passed from parent when used in multiplayer mode.
 // Do not call useSocket here to avoid duplicate socket connections.
-export default function Game({ socketData } = {}) {
+export default function Game({ socketData, onGameOver } = {}) {
   const [enemies, setEnemies] = useState([]);
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
@@ -340,7 +340,7 @@ export default function Game({ socketData } = {}) {
     const { width, height } = dims.current;
     const cxLocal = width / 2;
     const cyLocal = height / 2;
-    const alive = enemies.filter((e) => e.alive && !e.reached);
+    const alive = displayEnemies.filter((e) => e.alive && !e.reached);
     if (alive.length > 0) {
       const nearest = alive.reduce((a, b) => {
         const da = Math.hypot(a.x - cxLocal, a.y - cyLocal);
@@ -351,7 +351,7 @@ export default function Game({ socketData } = {}) {
     } else {
       setTarget(null);
     }
-  }, [enemies]);
+  }, [displayEnemies, enemies]);
 
   // check typed word kills target
   useEffect(() => {
@@ -411,6 +411,28 @@ export default function Game({ socketData } = {}) {
   const displayKills = serverPlayer?.kills ?? 0;
   const opponentHearts = opponentPlayer?.heart ?? 3;
   const opponentKills = opponentPlayer?.kills ?? 0;
+
+  // Detect game over in multiplayer when hearts reach 0 OR match ends
+  useEffect(() => {
+    if (connected && match) {
+      // Check if match ended (either player lost)
+      if (match.ended && !gameOver) {
+        setGameOver(true);
+        if (onGameOver) {
+          // Delay to show win/loss screen
+          setTimeout(() => onGameOver(), 3000);
+        }
+      }
+      // Or check if this player's hearts reached 0
+      else if (displayHearts <= 0 && !gameOver && !match.ended) {
+        setGameOver(true);
+      }
+    }
+  }, [connected, match, displayHearts, gameOver, onGameOver]);
+
+  // Determine win/loss status for display
+  const isWinner =
+    connected && match?.ended && match.winnerId === match.playerId;
 
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
@@ -491,7 +513,7 @@ export default function Game({ socketData } = {}) {
             </div>
           </div>
 
-          {/* Opponent POV (read-only mirror) */}
+          {/* Opponent POV (spectator view - shows stats only) */}
           <div className="flex-1">
             <div className="mb-2 text-sm font-semibold text-center">
               Opponent - ❤️ {opponentHearts} | 🎯 {opponentKills} kills
@@ -500,32 +522,32 @@ export default function Game({ socketData } = {}) {
               className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
               style={{ width, height, background: "#111" }}
             >
-              {displayEnemies.map((e) => {
-                const posX = e.displayX ?? e.x;
-                const posY = e.displayY ?? e.y;
-                return (
-                  <div
-                    key={"opp-" + e.id}
-                    title={e.word}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
-                    style={{
-                      left: posX,
-                      top: posY,
-                      opacity: e.alive ? 1 : 0.35,
-                    }}
-                  >
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-sky-400 border-slate-800 shadow`}
-                      style={{ fontSize: 18 }}
-                    >
-                      🧟
-                    </div>
-                    <div className="text-center mt-1 text-xs text-white">
-                      {e.alive ? e.word : "DEAD"}
-                    </div>
-                  </div>
-                );
-              })}
+              {/* Opponent player character in center */}
+              <div
+                title="opponent"
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
+                style={{
+                  left: cx,
+                  top: cy,
+                  width: playerRadius * 2,
+                  height: playerRadius * 2,
+                  borderRadius: "50%",
+                  background: "linear-gradient(180deg,#60a5fa,#3b82f6)",
+                  border: "3px solid #1e3a8a",
+                }}
+              >
+                🎮
+              </div>
+
+              {/* Spectator view - no enemy details shown */}
+              <div className="text-slate-500 text-sm text-center px-4">
+                <div className="mb-2">👁️ Spectator View</div>
+                <div className="text-xs">
+                  You cannot see opponent enemies or words.
+                  <br />
+                  Watch their stats above!
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -618,26 +640,64 @@ export default function Game({ socketData } = {}) {
       {/* Game over overlay */}
       {gameOver && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg text-center">
-            <h3 className="text-2xl font-bold mb-2">Game Over</h3>
-            <div className="mb-4">You ran out of hearts.</div>
-            <button
-              onClick={() => {
-                // minimal reset
-                setEnemies([]);
-                setHearts(3);
-                setGameOver(false);
-                nextId.current = 0;
-                startTime.current = Date.now();
-                if (typeof scheduleNextRef.current === "function")
-                  scheduleNextRef.current();
-                // ensure movement is running after restart
-                if (typeof startMovement === "function") startMovement();
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded"
-            >
-              Restart
-            </button>
+          <div className="bg-white p-6 rounded-lg text-center min-w-[300px]">
+            {connected && match?.ended ? (
+              // Multiplayer match ended
+              <>
+                <h3
+                  className={`text-3xl font-bold mb-4 ${
+                    isWinner ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {isWinner ? "🎉 Victory! 🎉" : "💀 Defeat 💀"}
+                </h3>
+                <div className="mb-4 text-lg">
+                  {isWinner
+                    ? "You won the match!"
+                    : "Your opponent survived longer."}
+                </div>
+                <div className="text-sm text-gray-600 mb-4">
+                  Final Score: {displayKills} kills | {displayHearts} ❤️
+                  remaining
+                </div>
+                <button
+                  onClick={() => {
+                    if (onGameOver) onGameOver();
+                  }}
+                  className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+                >
+                  Return to Home
+                </button>
+              </>
+            ) : (
+              // Single-player or local game over
+              <>
+                <h3 className="text-2xl font-bold mb-2">Game Over</h3>
+                <div className="mb-4">You ran out of hearts.</div>
+                <button
+                  onClick={() => {
+                    // In multiplayer, call onGameOver to return to home
+                    if (connected && match && onGameOver) {
+                      onGameOver();
+                    } else {
+                      // Single-player: minimal reset
+                      setEnemies([]);
+                      setHearts(3);
+                      setGameOver(false);
+                      nextId.current = 0;
+                      startTime.current = Date.now();
+                      if (typeof scheduleNextRef.current === "function")
+                        scheduleNextRef.current();
+                      // ensure movement is running after restart
+                      if (typeof startMovement === "function") startMovement();
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded"
+                >
+                  {connected && match ? "Return to Home" : "Restart"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

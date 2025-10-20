@@ -3,7 +3,7 @@ import Game from "./Game";
 
 // Multiplayer component: renders the split-screen Game using server-provided state.
 // Expects a single socketHook object created at App level (the return value of useSocket).
-export default function Multiplayer({ socketData }) {
+export default function Multiplayer({ socketData, onGameOver }) {
   const serverEnemies = (socketData && socketData.serverEnemies) || [];
   const readySentRef = useRef(false);
 
@@ -33,7 +33,7 @@ export default function Multiplayer({ socketData }) {
           Waiting for both players to be ready...
         </div>
       )}
-      <Game socketData={socketData} />
+      <Game socketData={socketData} onGameOver={onGameOver} />
     </div>
   );
 }

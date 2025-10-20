@@ -46,10 +46,18 @@ export default function StartPage() {
     }
   }, [match]);
 
+  // Handle game over in multiplayer - return to home
+  const handleGameOver = () => {
+    leaveQueue();
+    setStart(false);
+    setFinding(false);
+    setAutoCountdown(null);
+  };
+
   // If the user manually starts single-player, go to Game (no socketData)
   if (start && !match) return <Game />;
   // If matched, render Multiplayer component with socketHook
-  if (match) return <Multiplayer socketData={socketHook} />;
+  if (match) return <Multiplayer socketData={socketHook} onGameOver={handleGameOver} />;
   // If start was pressed in presence of a match, the above handles mounting Multiplayer
 
   return (

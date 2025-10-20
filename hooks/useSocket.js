@@ -47,7 +47,15 @@ export default function useSocket(serverUrl = "http://localhost:4000") {
     });
 
     socket.on("spawnEnemy", (enemy) => {
-      setServerEnemies((prev) => [...prev, enemy].slice(-200));
+      console.log(
+        `[Frontend ${socket.id}] Received spawnEnemy: id=${enemy.id}, word="${enemy.word}", ownerId=${enemy.ownerId}`
+      );
+      setServerEnemies((prev) => {
+        console.log(
+          `[Frontend ${socket.id}] Current enemy count: ${prev.length}`
+        );
+        return [...prev, enemy].slice(-200);
+      });
     });
 
     socket.on("enemyUpdate", (payload) => {
@@ -73,10 +81,18 @@ export default function useSocket(serverUrl = "http://localhost:4000") {
     });
 
     // server announces an enemy was killed
-    socket.on("enemyKilled", ({ enemyId }) => {
-      setServerEnemies((prev) =>
-        prev.map((e) => (e.id === enemyId ? { ...e, alive: false } : e))
+    socket.on("enemyKilled", ({ enemyId, by }) => {
+      console.log(
+        `[Frontend ${socket.id}] Received enemyKilled: enemyId=${enemyId}, by=${by}`
       );
+      setServerEnemies((prev) => {
+        const enemy = prev.find((e) => e.id === enemyId);
+        console.log(
+          `[Frontend ${socket.id}] Enemy ${enemyId} found in local state:`,
+          enemy ? `yes (word: "${enemy.word}")` : "NO"
+        );
+        return prev.map((e) => (e.id === enemyId ? { ...e, alive: false } : e));
+      });
     });
 
     // when an enemy reaches center (deduct hearts)
@@ -93,13 +109,35 @@ export default function useSocket(serverUrl = "http://localhost:4000") {
       if (state.players) setRoomPlayers(state.players);
     });
 
+    // Immediate player stats update (for instant kill counter)
+    socket.on("playerStats", ({ playerId, heart, kills }) => {
+      setRoomPlayers((prev) => {
+        if (!prev) return prev;
+        if (Array.isArray(prev)) {
+          return prev.map((p) =>
+            p.id === playerId ? { ...p, heart, kills } : p
+          );
+        }
+        // If prev is an object
+        if (prev[playerId]) {
+          return { ...prev, [playerId]: { ...prev[playerId], heart, kills } };
+        }
+        return prev;
+      });
+    });
+
     socket.on("matchEnd", (result) => {
       console.log("[socket] matchEnd", result);
-      // result: { winnerId, players }
-      // clear match / server enemies
-      setMatch(null);
-      setServerEnemies([]);
-      setRoomPlayers(null);
+      // result: { reason, winnerId, loserId, players }
+      // Store match end info before clearing
+      setMatch((prev) => ({
+        ...(prev || {}),
+        ended: true,
+        winnerId: result.winnerId,
+        loserId: result.loserId,
+        reason: result.reason,
+      }));
+      // Don't clear immediately - let component handle the display
     });
 
     // cleanup on unmount
