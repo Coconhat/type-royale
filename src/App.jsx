@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Game from "../components/Game";
-import Multiplayer from "../components/MultiplayerClient";
 import useSocket from "../hooks/useSocket";
 import MultiplayerClient from "../components/MultiplayerClient";
+import GithubButton from "../components/github-button";
 
 export default function StartPage() {
   const [start, setStart] = useState(false);
@@ -65,7 +65,7 @@ export default function StartPage() {
   // If start was pressed in presence of a match, the above handles mounting Multiplayer
 
   return (
-    <div className="mx-auto text-center mt-9">
+    <div className="mx-auto text-center mt-9 ">
       <h1 className="p-5 font-bold text-slate-900  text-3xl">
         Welcome to Type Royale
       </h1>
@@ -145,7 +145,18 @@ export default function StartPage() {
           </div>
         )}
 
-        <div className="text-xs ml-3">{connected ? "Online" : "Offline"}</div>
+        {
+          // Render cold start warning
+          connected && socketHook?.transport === "polling" && (
+            <div className="text-sm text-yellow-600">
+              Using polling - will upgrade to websocket automatically
+            </div>
+          )
+        }
+
+        <div className="text-xs ml-3">
+          {connected ? "Online" : "Connecting..."}
+        </div>
       </div>
 
       <div className="mt-6">
@@ -155,6 +166,16 @@ export default function StartPage() {
         >
           Start Solo
         </button>
+      </div>
+
+      <div className="fixed bottom-6 right-10">
+        <GithubButton
+          username="coconhat"
+          repo="type-royale"
+          showStars={true}
+          token="your-github-token"
+          className="mt-4"
+        />
       </div>
     </div>
   );

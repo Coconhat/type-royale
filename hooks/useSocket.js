@@ -13,6 +13,11 @@ export default function useSocket(
   const [roomPlayers, setRoomPlayers] = useState([]);
 
   useEffect(() => {
+    if (socketRef.current) {
+      console.log("⚠️ Socket already exists, skipping connection");
+      return;
+    }
+
     console.log("🔌 Connecting to:", serverUrl);
 
     const socket = io(serverUrl, {
@@ -22,6 +27,7 @@ export default function useSocket(
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
+      timeout: 20000,
     });
     socketRef.current = socket;
 
@@ -29,11 +35,25 @@ export default function useSocket(
       setConnected(true);
       console.log("✅ Socket connected:", socket.id);
       console.log("🚀 Transport:", socket.io.engine.transport.name);
+
+      // Render cold start warning
+      if (socket.io.engine.transport.name === "polling") {
+        console.log(
+          "💡 Using polling - will upgrade to websocket automatically"
+        );
+      }
     });
 
     socket.on("connect_error", (error) => {
       console.error("❌ Connection error:", error.message);
-      console.error("Full error:", error);
+
+      // Helpful debugging for common issues
+      if (error.message === "timeout") {
+        console.warn(
+          "⏱️ Connection timed out - Render might be cold starting (takes 30-60s)"
+        );
+        console.warn("💡 Will retry automatically...");
+      }
     });
 
     socket.on("disconnect", (reason) => {
@@ -164,6 +184,8 @@ export default function useSocket(
 
     // cleanup on unmount
     return () => {
+      console.log("🔌 Cleaning up socket connection");
+      socket.off(); // Remove all listeners
       socket.disconnect();
       socketRef.current = null;
     };
