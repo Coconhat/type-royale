@@ -145,7 +145,18 @@ export default function StartPage() {
           </div>
         )}
 
-        <div className="text-xs ml-3">{connected ? "Online" : "Offline"}</div>
+        {
+          // Render cold start warning
+          connected && socketHook?.transport === "polling" && (
+            <div className="text-sm text-yellow-600">
+              Using polling - will upgrade to websocket automatically
+            </div>
+          )
+        }
+
+        <div className="text-xs ml-3">
+          {connected ? "Online" : "Connecting..."}
+        </div>
       </div>
 
       <div className="mt-6">
