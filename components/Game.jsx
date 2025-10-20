@@ -470,7 +470,11 @@ export default function Game({ socketData } = {}) {
                     key={e.id}
                     title={e.word}
                     className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
-                    style={{ left: posX, top: posY, opacity: e.alive ? 1 : 0.35 }}
+                    style={{
+                      left: posX,
+                      top: posY,
+                      opacity: e.alive ? 1 : 0.35,
+                    }}
                   >
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-emerald-400 border-slate-800 shadow`}
@@ -504,7 +508,11 @@ export default function Game({ socketData } = {}) {
                     key={"opp-" + e.id}
                     title={e.word}
                     className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
-                    style={{ left: posX, top: posY, opacity: e.alive ? 1 : 0.35 }}
+                    style={{
+                      left: posX,
+                      top: posY,
+                      opacity: e.alive ? 1 : 0.35,
+                    }}
                   >
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-sky-400 border-slate-800 shadow`}

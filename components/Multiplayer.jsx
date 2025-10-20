@@ -9,8 +9,15 @@ export default function Multiplayer({ socketData }) {
 
   // Automatically send "ready" signal when component mounts and we have a match
   useEffect(() => {
-    if (socketData?.match?.roomId && socketData?.ready && !readySentRef.current) {
-      console.log("[Multiplayer] Sending ready signal to room:", socketData.match.roomId);
+    if (
+      socketData?.match?.roomId &&
+      socketData?.ready &&
+      !readySentRef.current
+    ) {
+      console.log(
+        "[Multiplayer] Sending ready signal to room:",
+        socketData.match.roomId
+      );
       socketData.ready(socketData.match.roomId);
       readySentRef.current = true;
     }
