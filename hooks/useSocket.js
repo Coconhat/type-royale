@@ -50,11 +50,26 @@ export default function useSocket(serverUrl = "http://localhost:4000") {
       setServerEnemies((prev) => [...prev, enemy].slice(-200));
     });
 
-    socket.on("enemyUpdate", (enemy) => {
-      // enemy: { id, x, y, alive }
-      setServerEnemies((prev) =>
-        prev.map((e) => (e.id === enemy.id ? { ...e, ...enemy } : e))
-      );
+    socket.on("enemyUpdate", (payload) => {
+      // payload: { updates: [{id, x, y, alive}, ...], t }
+      // Backend sends only changed enemies as deltas
+      if (!payload.updates || !Array.isArray(payload.updates)) return;
+
+      setServerEnemies((prev) => {
+        const updatesMap = new Map(payload.updates.map((u) => [u.id, u]));
+        return prev.map((e) => {
+          const update = updatesMap.get(e.id);
+          if (!update) return e;
+          // Store previous position for interpolation
+          return {
+            ...e,
+            ...update,
+            _prevX: e.x,
+            _prevY: e.y,
+            _updateTime: payload.t || Date.now(),
+          };
+        });
+      });
     });
 
     // server announces an enemy was killed

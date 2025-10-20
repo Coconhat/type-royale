@@ -23,15 +23,12 @@ export default function StartPage() {
     return () => clearInterval(t);
   }, [finding]);
 
-  // When a match is found, wait until the server has sent the initial enemies
-  // snapshot before auto-starting the match. This prevents rendering an empty
-  // multiplayer view when matchFound arrives but matchStart (with enemies)
-  // hasn't been delivered yet.
+  // When a match is found, immediately start the countdown and mount Multiplayer
+  // The Multiplayer component will send "ready" and wait for matchStart from server
   useEffect(() => {
-    // socketHook is stable; check serverEnemies property
-    const serverEnemies = socketHook.serverEnemies || [];
-    if (match && serverEnemies.length > 0) {
+    if (match) {
       setFinding(false);
+      // Short countdown before starting
       setAutoCountdown(2);
       const cd = setInterval(() => {
         setAutoCountdown((c) => {
@@ -47,8 +44,7 @@ export default function StartPage() {
 
       return () => clearInterval(cd);
     }
-    // if match exists but serverEnemies is still empty, do nothing and wait
-  }, [match, socketHook.serverEnemies]);
+  }, [match]);
 
   // If the user manually starts single-player, go to Game (no socketData)
   if (start && !match) return <Game />;

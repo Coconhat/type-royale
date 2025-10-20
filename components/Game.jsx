@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { allWords } from "../libs/words";
 import { initAudio, loadGunshot, playGunshot } from "../libs/gunshot";
+import useInterpolation from "../hooks/useInterpolation";
 // Game expects socketData to be passed from parent when used in multiplayer mode.
 // Do not call useSocket here to avoid duplicate socket connections.
 export default function Game({ socketData } = {}) {
@@ -20,7 +21,9 @@ export default function Game({ socketData } = {}) {
     sendHit = () => {},
   } = socketData || {};
 
-  const displayEnemies = connected && match ? serverEnemies : enemies;
+  // Use interpolation for smooth multiplayer movement (like Tetris.io)
+  const interpolatedEnemies = useInterpolation(serverEnemies);
+  const displayEnemies = connected && match ? interpolatedEnemies : enemies;
 
   // game timing (adjust totalGameSeconds to 180 for 3min or 240 for 4min)
   const startTime = useRef(Date.now());
@@ -397,7 +400,17 @@ export default function Game({ socketData } = {}) {
         : roomPlayers?.[match.playerId]
       : null;
 
-  const displayHearts = serverPlayer?.hearts ?? hearts;
+  const opponentPlayer =
+    connected && match && roomPlayers
+      ? Array.isArray(roomPlayers)
+        ? roomPlayers.find((p) => p.id === match.opponentId)
+        : roomPlayers?.[match.opponentId]
+      : null;
+
+  const displayHearts = serverPlayer?.heart ?? hearts;
+  const displayKills = serverPlayer?.kills ?? 0;
+  const opponentHearts = opponentPlayer?.heart ?? 3;
+  const opponentKills = opponentPlayer?.kills ?? 0;
 
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
@@ -425,6 +438,9 @@ export default function Game({ socketData } = {}) {
         <div className="flex gap-3 mt-4">
           {/* Player POV */}
           <div className="flex-1">
+            <div className="mb-2 text-sm font-semibold text-center">
+              You - ❤️ {displayHearts} | 🎯 {displayKills} kills
+            </div>
             <div
               className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
               style={{ width, height, background: "#000" }}
@@ -445,54 +461,63 @@ export default function Game({ socketData } = {}) {
                 ⌨️
               </div>
 
-              {displayEnemies.map((e) => (
-                <div
-                  key={e.id}
-                  title={e.word}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
-                  style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
-                >
+              {displayEnemies.map((e) => {
+                // Use interpolated position for smooth movement in multiplayer
+                const posX = e.displayX ?? e.x;
+                const posY = e.displayY ?? e.y;
+                return (
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-emerald-400 border-slate-800 shadow`}
-                    style={{ fontSize: 18 }}
+                    key={e.id}
+                    title={e.word}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+                    style={{ left: posX, top: posY, opacity: e.alive ? 1 : 0.35 }}
                   >
-                    🧟
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-emerald-400 border-slate-800 shadow`}
+                      style={{ fontSize: 18 }}
+                    >
+                      🧟
+                    </div>
+                    <div className="text-center mt-1 text-xs text-white">
+                      {e.alive ? e.word : "DEAD"}
+                    </div>
                   </div>
-                  <div className="text-center mt-1 text-xs text-white">
-                    {e.alive ? e.word : "DEAD"}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Opponent POV (read-only mirror) */}
           <div className="flex-1">
+            <div className="mb-2 text-sm font-semibold text-center">
+              Opponent - ❤️ {opponentHearts} | 🎯 {opponentKills} kills
+            </div>
             <div
               className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
               style={{ width, height, background: "#111" }}
             >
-              <div className="absolute top-2 left-2 text-sm text-white">
-                Opponent
-              </div>
-              {displayEnemies.map((e) => (
-                <div
-                  key={"opp-" + e.id}
-                  title={e.word}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
-                  style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
-                >
+              {displayEnemies.map((e) => {
+                const posX = e.displayX ?? e.x;
+                const posY = e.displayY ?? e.y;
+                return (
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-sky-400 border-slate-800 shadow`}
-                    style={{ fontSize: 18 }}
+                    key={"opp-" + e.id}
+                    title={e.word}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+                    style={{ left: posX, top: posY, opacity: e.alive ? 1 : 0.35 }}
                   >
-                    🧟
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-sky-400 border-slate-800 shadow`}
+                      style={{ fontSize: 18 }}
+                    >
+                      🧟
+                    </div>
+                    <div className="text-center mt-1 text-xs text-white">
+                      {e.alive ? e.word : "DEAD"}
+                    </div>
                   </div>
-                  <div className="text-center mt-1 text-xs text-white">
-                    {e.alive ? e.word : "DEAD"}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
