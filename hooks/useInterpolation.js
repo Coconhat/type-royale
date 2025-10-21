@@ -22,7 +22,7 @@ export default function useInterpolation(serverEnemies) {
 
   useEffect(() => {
     let mounted = true;
-    const LERP_FACTOR = 0.25; // smooth interpolation factor (higher = snappier)
+    const LERP_FACTOR = 0.1;
 
     function animate() {
       if (!mounted) return;
