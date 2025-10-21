@@ -12,6 +12,8 @@ export default function useSocket(
   const [serverEnemies, setServerEnemies] = useState([]);
   const [roomPlayers, setRoomPlayers] = useState([]);
 
+  const [onlinePlayers, setOnlinePlayers] = useState(0);
+
   useEffect(() => {
     if (socketRef.current) {
       console.log("⚠️ Socket already exists, skipping connection");
@@ -35,6 +37,9 @@ export default function useSocket(
       setConnected(true);
       console.log("✅ Socket connected:", socket.id);
       console.log("🚀 Transport:", socket.io.engine.transport.name);
+
+      // Request online player count when connected
+      socket.emit("getOnlinePlayers");
 
       // Render cold start warning
       if (socket.io.engine.transport.name === "polling") {
@@ -67,6 +72,14 @@ export default function useSocket(
 
     socket.io.on("reconnect", () => {
       console.log("✅ Reconnected successfully!");
+    });
+
+    socket.on("onlineCount", (count) => {
+      setOnlinePlayers(count);
+    });
+
+    socket.on("getOnlinePlayers", (data) => {
+      setOnlinePlayers(data.count);
     });
 
     socket.on("matchFound", (payload) => {
@@ -227,6 +240,7 @@ export default function useSocket(
     match,
     serverEnemies,
     roomPlayers,
+    onlinePlayers,
     joinQueue,
     leaveQueue,
     ready,

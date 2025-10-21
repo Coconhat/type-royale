@@ -12,7 +12,8 @@ export default function StartPage() {
 
   // create a single socket hook instance here and pass it down to children
   const socketHook = useSocket("https://type-royale-backend.onrender.com/");
-  const { connected, match, joinQueue, leaveQueue, ready } = socketHook;
+  const { connected, match, joinQueue, leaveQueue, ready, onlinePlayers } =
+    socketHook;
 
   // Start local timer while searching for match
   useEffect(() => {
@@ -157,6 +158,7 @@ export default function StartPage() {
         <div className="text-xs ml-3">
           {connected ? "Online" : "Connecting..."}
         </div>
+        <div className="text-xs ml-3">Online Players: {onlinePlayers}</div>
       </div>
 
       <div className="mt-6">
