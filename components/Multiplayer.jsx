@@ -154,6 +154,45 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
             className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
             style={{ width, height, background: "#000" }}
           >
+            {/* Target tracking line */}
+            {target && (
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                style={{ width: "100%", height: "100%" }}
+              >
+                <defs>
+                  <linearGradient
+                    id="targetLineGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="0%"
+                  >
+                    <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.3" />
+                  </linearGradient>
+                </defs>
+                <line
+                  x1={cx}
+                  y1={cy}
+                  x2={target.displayX ?? target.x}
+                  y2={target.displayY ?? target.y}
+                  stroke="url(#targetLineGradient)"
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                  className="animate-pulse"
+                />
+                {/* Arrowhead at enemy position */}
+                <circle
+                  cx={target.displayX ?? target.x}
+                  cy={target.displayY ?? target.y}
+                  r="4"
+                  fill="#fbbf24"
+                  className="animate-pulse"
+                />
+              </svg>
+            )}
+
             <div
               title="player"
               className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
@@ -178,7 +217,8 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                 <div
                   key={e.id}
                   title={e.word}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity
+                  }`}
                   style={{
                     left: posX,
                     top: posY,
