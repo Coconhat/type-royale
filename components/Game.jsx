@@ -344,6 +344,44 @@ export default function Game() {
           background: "#000000",
         }}
       >
+        {/* Target tracking line */}
+        {target && (
+          <svg
+            className="absolute inset-0 pointer-events-none z-10"
+            style={{ width: "100%", height: "100%" }}
+          >
+            <defs>
+              <linearGradient
+                id="target-line-gradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.3" />
+              </linearGradient>
+            </defs>
+            <line
+              x1={cx}
+              y1={cy}
+              x2={target.x}
+              y2={target.y}
+              stroke="url(#target-line-gradient)"
+              strokeWidth="3"
+              strokeDasharray="8,4"
+              opacity="0.9"
+            />
+            <circle
+              cx={target.x}
+              cy={target.y}
+              r="6"
+              fill="#fbbf24"
+              opacity="0.8"
+            />
+          </svg>
+        )}
+
         {/* player in center */}
         <div
           title="player"
