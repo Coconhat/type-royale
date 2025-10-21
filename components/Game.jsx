@@ -37,7 +37,7 @@ export default function Game() {
   const prevAliveRef = useRef({});
 
   // game dimensions (px) - keep stable refs so effects don't require them as deps
-  const dims = useRef({ width: 600, height: 600, playerRadius: 22 });
+  const dims = useRef({ width: 1280, height: 600, playerRadius: 22 });
   const width = dims.current.width;
   const height = dims.current.height;
   const cx = width / 2;
