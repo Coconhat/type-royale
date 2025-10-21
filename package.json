@@ -1,7 +1,27 @@
 {
   "name": "type-royale",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Multiplayer typing game - compete in real-time by typing words to defeat opponents",
+  "keywords": [
+    "typing game",
+    "multiplayer",
+    "typing battle",
+    "wpm",
+    "typing speed",
+    "game",
+    "react",
+    "socketio"
+  ],
+  "author": "Type Royale Team",
+  "homepage": "https://type-royale.onrender.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Coconhat/type-royale.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Coconhat/type-royale/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
