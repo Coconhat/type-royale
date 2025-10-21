@@ -12,6 +12,7 @@ export default function Game() {
 
   const [bullets, setBullets] = useState([]);
   const [hitEnemies, setHitEnemies] = useState(new Set());
+  const [errorEnemies, setErrorEnemies] = useState(new Set());
 
   // game timing (adjust totalGameSeconds to 180 for 3min or 240 for 4min)
   const startTime = useRef(Date.now());
@@ -313,6 +314,7 @@ export default function Game() {
         const newInput = input + newChar;
 
         if (target && target.word.startsWith(newInput)) {
+          // Correct letter - shoot bullet
           const targetX = target.displayX ?? target.x;
           const targetY = target.displayY ?? target.y;
 
@@ -361,7 +363,20 @@ export default function Game() {
             }
           };
           requestAnimationFrame(animateBullet);
+        } else if (target && input.length >= 0) {
+          // Wrong letter - trigger error shake
+          setErrorEnemies((prev) => new Set(prev).add(target.id));
+
+          // Remove error after shake animation (500ms)
+          setTimeout(() => {
+            setErrorEnemies((prev) => {
+              const next = new Set(prev);
+              next.delete(target.id);
+              return next;
+            });
+          }, 500);
         }
+
         setInput(newInput);
       }
     };
@@ -459,6 +474,7 @@ export default function Game() {
         {enemies.map((e) => {
           const isTarget = target && target.id === e.id;
           const isHit = hitEnemies.has(e.id);
+          const hasError = errorEnemies.has(e.id);
           const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
           return (
             <div
@@ -466,7 +482,9 @@ export default function Game() {
               title={e.word}
               className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
                 target && target.id === e.id ? "z-10" : ""
-              } ${isHit ? "animate-pulse" : ""}`}
+              } ${isHit ? "animate-pulse" : ""} ${
+                hasError ? "animate-shake" : ""
+              }`}
               style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
             >
               <div
@@ -480,12 +498,16 @@ export default function Game() {
               <div className="text-center mt-1 text-xs text-white">
                 {e.alive ? (
                   isTarget ? (
-                    <span>
-                      <span className="text-green-400 font-bold">
-                        {e.word.slice(0, input.length)}
+                    e.word.startsWith(input) ? (
+                      <span>
+                        <span className="text-green-400 font-bold">
+                          {e.word.slice(0, input.length)}
+                        </span>
+                        <span>{e.word.slice(input.length)}</span>
                       </span>
-                      <span>{e.word.slice(input.length)}</span>
-                    </span>
+                    ) : (
+                      <span className="text-red-400 font-bold">{e.word}</span>
+                    )
                   ) : (
                     e.word
                   )
