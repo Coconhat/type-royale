@@ -7,6 +7,8 @@ import audioInit from "../libs/audio-init";
 export default function Multiplayer({ socketData, onGameOver } = {}) {
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
+  const [bullets, setBullets] = useState([]);
+  const [hitEnemies, setHitEnemies] = useState(new Set());
 
   const {
     connected = false,
@@ -63,12 +65,72 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
       if (e.key === "Backspace") {
         setInput((i) => i.slice(0, -1));
       } else if (/^[a-zA-Z]$/.test(e.key)) {
-        setInput((i) => i + e.key.toLowerCase());
+        const newChar = e.key.toLowerCase();
+        const newInput = input + newChar;
+
+        // Check if this letter matches the target word
+        if (target && target.word.startsWith(newInput)) {
+          // Correct letter Shoot a bullet
+          const targetX = target.displayX ?? target.x;
+          const targetY = target.displayY ?? target.y;
+
+          const bulletId = Date.now() + Math.random();
+          setBullets((prev) => [
+            ...prev,
+            {
+              id: bulletId,
+              startX: cx,
+              startY: cy,
+              endX: targetX,
+              endY: targetY,
+              progress: 0,
+            },
+          ]);
+
+          // Animate bullet
+          let progress = 0;
+          const duration = 200; // 200ms bullet travel time
+          const startTime = Date.now();
+
+          const animateBullet = () => {
+            const elapsed = Date.now() - startTime;
+            progress = Math.min(elapsed / duration, 1);
+
+            setBullets((prev) =>
+              prev.map((b) => (b.id === bulletId ? { ...b, progress } : b))
+            );
+
+            if (progress < 1) {
+              requestAnimationFrame(animateBullet);
+            } else {
+              // Bullet reached target - add hit effect
+              setHitEnemies((prev) => new Set(prev).add(target.id));
+
+              // Remove hit effect after 150ms
+              setTimeout(() => {
+                setHitEnemies((prev) => {
+                  const next = new Set(prev);
+                  next.delete(target.id);
+                  return next;
+                });
+              }, 150);
+
+              // Remove bullet after animation
+              setTimeout(() => {
+                setBullets((prev) => prev.filter((b) => b.id !== bulletId));
+              }, 100);
+            }
+          };
+
+          requestAnimationFrame(animateBullet);
+        }
+
+        setInput(newInput);
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, []);
+  }, [input, target, cx, cy]);
 
   // compute distance to target
   const targetDistance = target
@@ -154,6 +216,45 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
             className="rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
             style={{ width, height, background: "#000" }}
           >
+            {/* Target tracking line */}
+            {target && (
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                style={{ width: "100%", height: "100%" }}
+              >
+                <defs>
+                  <linearGradient
+                    id="targetLineGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="0%"
+                  >
+                    <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.3" />
+                  </linearGradient>
+                </defs>
+                <line
+                  x1={cx}
+                  y1={cy}
+                  x2={target.displayX ?? target.x}
+                  y2={target.displayY ?? target.y}
+                  stroke="url(#targetLineGradient)"
+                  strokeWidth="2"
+                  strokeDasharray="5,5"
+                  className="animate-pulse"
+                />
+                {/* Arrowhead at enemy position */}
+                <circle
+                  cx={target.displayX ?? target.x}
+                  cy={target.displayY ?? target.y}
+                  r="4"
+                  fill="#fbbf24"
+                  className="animate-pulse"
+                />
+              </svg>
+            )}
+
             <div
               title="player"
               className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
@@ -174,11 +275,16 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
               // Use interpolated position for smooth movement in multiplayer
               const posX = e.displayX ?? e.x;
               const posY = e.displayY ?? e.y;
+              const isHit = hitEnemies.has(e.id);
+              const isTarget = target && target.id === e.id;
+
               return (
                 <div
                   key={e.id}
                   title={e.word}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity`}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
+                    isHit ? "animate-pulse" : ""
+                  }`}
                   style={{
                     left: posX,
                     top: posY,
@@ -186,14 +292,55 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                   }}
                 >
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 bg-emerald-400 border-slate-800 shadow`}
-                    style={{ fontSize: 18 }}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-800 shadow ${
+                      isHit ? "bg-red-500 scale-110" : "bg-emerald-400"
+                    }`}
+                    style={{
+                      fontSize: 18,
+                      transition: "all 0.15s ease-out",
+                    }}
                   >
                     🧟
                   </div>
                   <div className="text-center mt-1 text-xs text-white">
-                    {e.alive ? e.word : "DEAD"}
+                    {e.alive ? (
+                      isTarget ? (
+                        <span>
+                          {/* Highlight typed characters for target enemy */}
+                          <span className="text-green-400 font-bold">
+                            {e.word.slice(0, input.length)}
+                          </span>
+                          <span>{e.word.slice(input.length)}</span>
+                        </span>
+                      ) : (
+                        e.word
+                      )
+                    ) : (
+                      "DEAD"
+                    )}
                   </div>
+                </div>
+              );
+            })}
+
+            {/* Render bullets */}
+            {bullets.map((bullet) => {
+              const currentX =
+                bullet.startX + (bullet.endX - bullet.startX) * bullet.progress;
+              const currentY =
+                bullet.startY + (bullet.endY - bullet.startY) * bullet.progress;
+
+              return (
+                <div
+                  key={bullet.id}
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: currentX,
+                    top: currentY,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                >
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50" />
                 </div>
               );
             })}
