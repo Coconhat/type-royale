@@ -10,6 +10,8 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
   const [bullets, setBullets] = useState([]);
   const [hitEnemies, setHitEnemies] = useState(new Set());
 
+  //b
+
   const {
     connected = false,
     match = null,

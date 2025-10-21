@@ -9,7 +9,9 @@ export default function Game() {
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
   const nextId = useRef(0);
-  // (health/gameOver declarations are added further below)
+
+  const [bullets, setBullets] = useState([]);
+  const [hitEnemies, setHitEnemies] = useState(new Set());
 
   // game timing (adjust totalGameSeconds to 180 for 3min or 240 for 4min)
   const startTime = useRef(Date.now());
@@ -307,12 +309,66 @@ export default function Game() {
       if (e.key === "Backspace") {
         setInput((i) => i.slice(0, -1));
       } else if (/^[a-zA-Z]$/.test(e.key)) {
-        setInput((i) => i + e.key.toLowerCase());
+        const newChar = e.key.toLowerCase();
+        const newInput = input + newChar;
+
+        if (target && target.word.startsWith(newInput)) {
+          const targetX = target.displayX ?? target.x;
+          const targetY = target.displayY ?? target.y;
+
+          const bulletId = Date.now() + Math.random();
+          setBullets((prev) => [
+            ...prev,
+            {
+              id: bulletId,
+              startX: cx,
+              startY: cy,
+              endX: targetX,
+              endY: targetY,
+              progress: 0,
+            },
+          ]);
+
+          // animate bullet
+          let progress = 0;
+          const duration = 200;
+          const startTime = Date.now();
+
+          const animateBullet = () => {
+            const elapsed = Date.now() - startTime;
+            progress = Math.min(elapsed / duration, 1);
+
+            setBullets((prev) =>
+              prev.map((b) => (b.id === bulletId ? { ...b, progress } : b))
+            );
+
+            if (progress < 1) {
+              requestAnimationFrame(animateBullet);
+            } else {
+              setHitEnemies((prev) => new Set(prev).add(target.id));
+
+              setTimeout(() => {
+                setHitEnemies((prev) => {
+                  const next = new Set(prev);
+                  next.delete(target.id);
+                  return next;
+                });
+              }, 150);
+              // Remove bullet after animation
+              setTimeout(() => {
+                setBullets((prev) => prev.filter((b) => b.id !== bulletId));
+              }, 100);
+            }
+          };
+          requestAnimationFrame(animateBullet);
+        }
+        setInput(newInput);
       }
     };
+
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, []);
+  }, [input, target, cx, cy]);
 
   // compute distance to target
   const targetDistance = target
@@ -402,6 +458,7 @@ export default function Game() {
         {/* enemies */}
         {enemies.map((e) => {
           const isTarget = target && target.id === e.id;
+          const isHit = hitEnemies.has(e.id);
           const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
           return (
             <div
@@ -409,20 +466,55 @@ export default function Game() {
               title={e.word}
               className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
                 target && target.id === e.id ? "z-10" : ""
-              }`}
+              } ${isHit ? "animate-pulse" : ""}`}
               style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
             >
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${bgClass} border-slate-800 shadow ${
-                  isTarget ? "ring-1 ring-yellow-400 z-10" : ""
-                }`}
-                style={{ fontSize: 18 }}
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-800 shadow ${
+                  isHit ? "bg-red-500 scale-110" : bgClass
+                } ${isTarget ? "ring-1 ring-yellow-400 z-10" : ""}`}
+                style={{ fontSize: 18, transition: "all 0.15s ease-out" }}
               >
                 🧟
               </div>
               <div className="text-center mt-1 text-xs text-white">
-                {e.alive ? e.word : "DEAD"}
+                {e.alive ? (
+                  isTarget ? (
+                    <span>
+                      <span className="text-green-400 font-bold">
+                        {e.word.slice(0, input.length)}
+                      </span>
+                      <span>{e.word.slice(input.length)}</span>
+                    </span>
+                  ) : (
+                    e.word
+                  )
+                ) : (
+                  "DEAD"
+                )}
               </div>
+            </div>
+          );
+        })}
+
+        {/* Render bullets */}
+        {bullets.map((bullet) => {
+          const currentX =
+            bullet.startX + (bullet.endX - bullet.startX) * bullet.progress;
+          const currentY =
+            bullet.startY + (bullet.endY - bullet.startY) * bullet.progress;
+
+          return (
+            <div
+              key={bullet.id}
+              className="absolute pointer-events-none"
+              style={{
+                left: currentX,
+                top: currentY,
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50" />
             </div>
           );
         })}
