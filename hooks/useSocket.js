@@ -12,7 +12,17 @@ export default function useSocket(
   const [serverEnemies, setServerEnemies] = useState([]);
   const [roomPlayers, setRoomPlayers] = useState([]);
 
+  const [spectatorEnemies, setSpectatorEnemies] = useState({});
+
   const [onlinePlayers, setOnlinePlayers] = useState(0);
+
+  const updateSpectators = (ownerId, updater) => {
+    setSpectatorEnemies((prev) => {
+      const current = prev[ownerId] || [];
+      const next = updater(current);
+      return { ...prev, [ownerId]: next };
+    });
+  };
 
   useEffect(() => {
     if (socketRef.current) {
@@ -88,6 +98,7 @@ export default function useSocket(
       setMatch(payload);
       // clear any previous server state until matchStart
       setServerEnemies([]);
+      setSpectatorEnemies({});
       setRoomPlayers(null);
     });
 
@@ -195,12 +206,61 @@ export default function useSocket(
       // Don't clear immediately - let component handle the display
     });
 
+    socket.on("enemySpawned", ({ ownerId, enemy }) => {
+      console.log("[spectator] spawn", ownerId, enemy.id, enemy.word);
+      updateSpectators(ownerId, (list) =>
+        [...list.filter((e) => e.id !== enemy.id), enemy].slice(-200)
+      );
+    });
+
+    socket.on("spectatorUpdate", ({ ownerId, updates, t }) => {
+      if (!Array.isArray(updates)) return;
+      if (updates.length > 0) {
+        console.log("[spectator] update", ownerId, updates.length);
+      }
+      updateSpectators(ownerId, (list) => {
+        const map = new Map(updates.map((u) => [u.id, u]));
+        return list.map((enemy) => {
+          const update = map.get(enemy.id);
+          if (!update) return enemy;
+          return {
+            ...enemy,
+            ...update,
+            _prevX: enemy.x,
+            _prevY: enemy.y,
+            _updateTime: t || Date.now(),
+          };
+        });
+      });
+    });
+
+    socket.on("spectatorKilled", ({ ownerId, enemyId }) => {
+      console.log("[spectator] killed", ownerId, enemyId);
+      updateSpectators(ownerId, (list) =>
+        list.map((e) => (e.id === enemyId ? { ...e, alive: false } : e))
+      );
+    });
+
+    socket.on("spectatorReached", ({ ownerId, enemies }) => {
+      console.log(
+        "[spectator] reached",
+        ownerId,
+        enemies?.map((e) => e.id)
+      );
+      const reachedIds = new Set(enemies?.map((e) => e.id) || []);
+      updateSpectators(ownerId, (list) =>
+        list.map((e) => (reachedIds.has(e.id) ? { ...e, alive: false } : e))
+      );
+    });
+
     // cleanup on unmount
     return () => {
       console.log("🔌 Cleaning up socket connection");
       socket.off(); // Remove all listeners
       socket.disconnect();
       socketRef.current = null;
+      setServerEnemies([]);
+      setSpectatorEnemies({});
     };
   }, [serverUrl]);
 
@@ -240,6 +300,7 @@ export default function useSocket(
     match,
     serverEnemies,
     roomPlayers,
+    spectatorEnemies,
     onlinePlayers,
     joinQueue,
     leaveQueue,

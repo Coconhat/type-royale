@@ -18,10 +18,14 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
     serverEnemies = [],
     roomPlayers = null,
     sendHit = () => {},
+    spectatorEnemies = {},
   } = socketData || {};
 
   // Use interpolation for smooth multiplayer movement
   const displayEnemies = useInterpolation(serverEnemies);
+  const opponentEnemies = useInterpolation(
+    spectatorEnemies?.[match?.opponentId] || []
+  );
 
   const [gameOver, setGameOver] = useState(false);
 
@@ -284,6 +288,7 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
 
             {displayEnemies
               .filter((e) => {
+                if (e.alive) return true;
                 const deadEnemies = displayEnemies.filter(
                   (enemy) => !enemy.alive
                 );
@@ -394,15 +399,68 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
               🎮
             </div>
 
-            {/* Spectator view - no enemy details shown */}
-            <div className="text-slate-500 text-sm text-center px-4">
-              <div className="mb-2">👁️ Spectator View</div>
-              <div className="text-xs">
-                You cannot see opponent enemies or words.
-                <br />
-                Watch their stats above!
-              </div>
-            </div>
+            {opponentEnemies
+              .filter((e) => {
+                if (e.alive) return true;
+                const deadEnemies = opponentEnemies.filter(
+                  (enemy) => !enemy.alive
+                );
+                const deadEnemiesIndex = deadEnemies.findIndex(
+                  (de) => de.id === e.id
+                );
+                return deadEnemiesIndex >= deadEnemies.length - 12;
+              })
+              .map((e) => {
+                // Use interpolated position for smooth movement in multiplayer
+                const posX = e.displayX ?? e.x;
+                const posY = e.displayY ?? e.y;
+                const isHit = hitEnemies.has(e.id);
+                const isTarget = target && target.id === e.id;
+
+                return (
+                  <div
+                    key={e.id}
+                    title={e.word}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
+                      isHit ? "animate-pulse" : ""
+                    }`}
+                    style={{
+                      left: posX,
+                      top: posY,
+                      opacity: e.alive ? 1 : 0.35,
+                    }}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-800 shadow ${
+                        isHit ? "bg-red-500 scale-110" : "bg-emerald-400"
+                      }`}
+                      style={{
+                        fontSize: 18,
+                        transition: "all 0.15s ease-out",
+                      }}
+                    >
+                      🧟
+                    </div>
+                    <div className="text-center mt-1 text-xs text-white">
+                      {e.alive ? (
+                        isTarget ? (
+                          <span>
+                            {/* Highlight typed characters for target enemy */}
+                            <span className="text-green-400 font-bold">
+                              {e.word.slice(0, input.length)}
+                            </span>
+                            <span>{e.word.slice(input.length)}</span>
+                          </span>
+                        ) : (
+                          e.word
+                        )
+                      ) : (
+                        "DEAD"
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </div>
