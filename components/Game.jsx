@@ -279,7 +279,18 @@ export default function Game() {
     const cxLocal = width / 2;
     const cyLocal = height / 2;
     const alive = enemies.filter((e) => e.alive && !e.reached);
-    if (alive.length > 0) {
+
+    // if current target is still alive dont auto retarget
+    const currentTargetStillAlive =
+      target && alive.some((e) => e.id === target.id);
+
+    if (currentTargetStillAlive) {
+      // do nothing (dont change target)
+      const updatedTarget = alive.find((e) => e.id === target.id);
+      if (updatedTarget) {
+        setTarget(updatedTarget);
+      }
+    } else if (alive.length > 0) {
       const nearest = alive.reduce((a, b) => {
         const da = Math.hypot(a.x - cxLocal, a.y - cyLocal);
         const db = Math.hypot(b.x - cxLocal, b.y - cyLocal);
@@ -289,7 +300,7 @@ export default function Game() {
     } else {
       setTarget(null);
     }
-  }, [enemies]);
+  }, [enemies, target]);
 
   // check typed word kills target
   useEffect(() => {
