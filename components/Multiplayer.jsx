@@ -70,9 +70,7 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
         if (progress < 1) {
           requestAnimationFrame(animate);
         } else {
-          setSpectatorBullets((prev) =>
-            prev.filter((b) => b.id !== bulletId)
-          );
+          setSpectatorBullets((prev) => prev.filter((b) => b.id !== bulletId));
         }
       };
 
