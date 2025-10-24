@@ -37,7 +37,16 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
   // find nearest enemy to player center
   useEffect(() => {
     const alive = displayEnemies.filter((e) => e.alive && !e.reached);
-    if (alive.length > 0) {
+
+    const currentTargetIsStillAlive =
+      target && alive.find((e) => e.id === target.id);
+
+    if (currentTargetIsStillAlive) {
+      const updatedTarget = alive.find((e) => e.id === target.id);
+      if (updatedTarget) {
+        setTarget(updatedTarget);
+      }
+    } else if (alive.length > 0) {
       const nearest = alive.reduce((a, b) => {
         const da = Math.hypot(a.x - cx, a.y - cy);
         const db = Math.hypot(b.x - cx, b.y - cy);
@@ -47,7 +56,7 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
     } else {
       setTarget(null);
     }
-  }, [displayEnemies, cx, cy]);
+  }, [displayEnemies, cx, cy, target]);
 
   // check typed word kills target
   useEffect(() => {
