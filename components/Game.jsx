@@ -482,53 +482,64 @@ export default function Game() {
         </div>
 
         {/* enemies */}
-        {enemies.map((e) => {
-          const isTarget = target && target.id === e.id;
-          const isHit = hitEnemies.has(e.id);
-          const hasError = errorEnemies.has(e.id);
-          const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
-          return (
-            <div
-              key={e.id}
-              title={e.word}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
-                target && target.id === e.id ? "z-10" : ""
-              } ${isHit ? "animate-pulse" : ""} ${
-                hasError ? "animate-shake" : ""
-              }`}
-              style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
-            >
+        {enemies
+          .filter((e) => {
+            if (e.alive) return true;
+
+            const deadEnemies = enemies.filter((e) => !e.alive);
+            const deadEnemyIndex = deadEnemies.findIndex(
+              (de) => de.id === e.id
+            );
+
+            return deadEnemyIndex >= deadEnemies.length - 12;
+          })
+          .map((e) => {
+            const isTarget = target && target.id === e.id;
+            const isHit = hitEnemies.has(e.id);
+            const hasError = errorEnemies.has(e.id);
+            const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
+            return (
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-800 shadow ${
-                  isHit ? "bg-red-500 scale-110" : bgClass
-                } ${isTarget ? "ring-1 ring-yellow-400 z-10" : ""}`}
-                style={{ fontSize: 18, transition: "all 0.15s ease-out" }}
+                key={e.id}
+                title={e.word}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
+                  target && target.id === e.id ? "z-10" : ""
+                } ${isHit ? "animate-pulse" : ""} ${
+                  hasError ? "animate-shake" : ""
+                }`}
+                style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
               >
-                🧟
-              </div>
-              <div className="text-center mt-1 text-xs text-white">
-                {e.alive ? (
-                  isTarget ? (
-                    e.word.startsWith(input) ? (
-                      <span>
-                        <span className="text-green-400 font-bold">
-                          {e.word.slice(0, input.length)}
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-800 shadow ${
+                    isHit ? "bg-red-500 scale-110" : bgClass
+                  } ${isTarget ? "ring-1 ring-yellow-400 z-10" : ""}`}
+                  style={{ fontSize: 18, transition: "all 0.15s ease-out" }}
+                >
+                  🧟
+                </div>
+                <div className="text-center mt-1 text-xs text-white">
+                  {e.alive ? (
+                    isTarget ? (
+                      e.word.startsWith(input) ? (
+                        <span>
+                          <span className="text-green-400 font-bold">
+                            {e.word.slice(0, input.length)}
+                          </span>
+                          <span>{e.word.slice(input.length)}</span>
                         </span>
-                        <span>{e.word.slice(input.length)}</span>
-                      </span>
+                      ) : (
+                        <span className="text-red-400 font-bold">{e.word}</span>
+                      )
                     ) : (
-                      <span className="text-red-400 font-bold">{e.word}</span>
+                      e.word
                     )
                   ) : (
-                    e.word
-                  )
-                ) : (
-                  "DEAD"
-                )}
+                    "DEAD"
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
         {/* Render bullets */}
         {bullets.map((bullet) => {
