@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 
 import { playGunshot } from "../libs/gunshot";
 import useInterpolation from "../hooks/useInterpolation";
@@ -9,6 +9,9 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
   const [target, setTarget] = useState(null);
   const [bullets, setBullets] = useState([]);
   const [hitEnemies, setHitEnemies] = useState(new Set());
+  const [spectatorHitEnemies, setSpectatorHitEnemies] = useState(new Set());
+  const [spectatorBullets, setSpectatorBullets] = useState([]);
+  const prevOpponentEnemiesRef = useRef([]);
 
   //b
 
@@ -38,6 +41,52 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
 
   audioInit();
 
+  const launchSpectatorBullet = useCallback(
+    (endX, endY, enemyId) => {
+      const bulletId = `spectator-${enemyId}-${Date.now()}`;
+      const duration = 200;
+      const startTime = Date.now();
+
+      setSpectatorBullets((prev) => [
+        ...prev,
+        {
+          id: bulletId,
+          startX: cx,
+          startY: cy,
+          endX,
+          endY,
+          progress: 0,
+        },
+      ]);
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        setSpectatorBullets((prev) =>
+          prev.map((b) => (b.id === bulletId ? { ...b, progress } : b))
+        );
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          setSpectatorBullets((prev) =>
+            prev.filter((b) => b.id !== bulletId)
+          );
+        }
+      };
+
+      requestAnimationFrame(animate);
+    },
+    [cx, cy]
+  );
+
+  useEffect(() => {
+    setSpectatorHitEnemies(new Set());
+    setSpectatorBullets([]);
+    prevOpponentEnemiesRef.current = [];
+  }, [match?.opponentId]);
+
   // find nearest enemy to player center
   useEffect(() => {
     const alive = displayEnemies.filter((e) => e.alive && !e.reached);
@@ -61,6 +110,46 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
       setTarget(null);
     }
   }, [displayEnemies, cx, cy, target]);
+
+  useEffect(() => {
+    const opponentId = match?.opponentId;
+    if (!opponentId) {
+      prevOpponentEnemiesRef.current = [];
+      return;
+    }
+
+    const current = spectatorEnemies?.[opponentId] || [];
+    const prevSnapshot = prevOpponentEnemiesRef.current || [];
+
+    current.forEach((enemy) => {
+      const prevEnemy = prevSnapshot.find((p) => p.id === enemy.id);
+      if (prevEnemy && prevEnemy.alive && !enemy.alive) {
+        const endX = enemy.displayX ?? enemy.x;
+        const endY = enemy.displayY ?? enemy.y;
+
+        launchSpectatorBullet(endX, endY, enemy.id);
+
+        setSpectatorHitEnemies((prev) => {
+          const next = new Set(prev);
+          next.add(enemy.id);
+          return next;
+        });
+
+        setTimeout(() => {
+          setSpectatorHitEnemies((prev) => {
+            const next = new Set(prev);
+            next.delete(enemy.id);
+            return next;
+          });
+        }, 200);
+      }
+    });
+
+    prevOpponentEnemiesRef.current = current.map((enemy) => ({
+      id: enemy.id,
+      alive: enemy.alive,
+    }));
+  }, [spectatorEnemies, match?.opponentId, launchSpectatorBullet]);
 
   // check typed word kills target
   useEffect(() => {
@@ -332,7 +421,6 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                       {e.alive ? (
                         isTarget ? (
                           <span>
-                            {/* Highlight typed characters for target enemy */}
                             <span className="text-green-400 font-bold">
                               {e.word.slice(0, input.length)}
                             </span>
@@ -414,8 +502,7 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                 // Use interpolated position for smooth movement in multiplayer
                 const posX = e.displayX ?? e.x;
                 const posY = e.displayY ?? e.y;
-                const isHit = hitEnemies.has(e.id);
-                const isTarget = target && target.id === e.id;
+                const isHit = spectatorHitEnemies.has(e.id);
 
                 return (
                   <div
@@ -442,25 +529,31 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                       🧟
                     </div>
                     <div className="text-center mt-1 text-xs text-white">
-                      {e.alive ? (
-                        isTarget ? (
-                          <span>
-                            {/* Highlight typed characters for target enemy */}
-                            <span className="text-green-400 font-bold">
-                              {e.word.slice(0, input.length)}
-                            </span>
-                            <span>{e.word.slice(input.length)}</span>
-                          </span>
-                        ) : (
-                          e.word
-                        )
-                      ) : (
-                        "DEAD"
-                      )}
+                      {e.alive ? e.word : "DEAD"}
                     </div>
                   </div>
                 );
               })}
+            {spectatorBullets.map((bullet) => {
+              const currentX =
+                bullet.startX + (bullet.endX - bullet.startX) * bullet.progress;
+              const currentY =
+                bullet.startY + (bullet.endY - bullet.startY) * bullet.progress;
+
+              return (
+                <div
+                  key={bullet.id}
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: currentX,
+                    top: currentY,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                >
+                  <div className="w-2 h-2 rounded-full bg-sky-400 shadow-lg shadow-sky-400/50" />
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
