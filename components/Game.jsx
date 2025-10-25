@@ -8,6 +8,7 @@ export default function Game() {
   const [enemies, setEnemies] = useState([]);
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
+  const [nextTarget, setNextTarget] = useState(null);
   const nextId = useRef(0);
 
   const [bullets, setBullets] = useState([]);
@@ -280,26 +281,40 @@ export default function Game() {
     const cyLocal = height / 2;
     const alive = enemies.filter((e) => e.alive && !e.reached);
 
-    // if current target is still alive dont auto retarget
+    const ranked = alive
+      .map((enemy) => ({
+        enemy,
+        dist: Math.hypot(enemy.x - cxLocal, enemy.y - cyLocal),
+      }))
+      .sort((a, b) => a.dist - b.dist);
+
     const currentTargetStillAlive =
-      target && alive.some((e) => e.id === target.id);
+      target && ranked.some((entry) => entry.enemy.id === target.id);
+
+    let primaryEnemy = null;
 
     if (currentTargetStillAlive) {
-      // do nothing (dont change target)
-      const updatedTarget = alive.find((e) => e.id === target.id);
-      if (updatedTarget) {
-        setTarget(updatedTarget);
+      primaryEnemy =
+        ranked.find((entry) => entry.enemy.id === target.id)?.enemy || null;
+      if (!primaryEnemy && ranked.length > 0) {
+        primaryEnemy = ranked[0].enemy;
       }
-    } else if (alive.length > 0) {
-      const nearest = alive.reduce((a, b) => {
-        const da = Math.hypot(a.x - cxLocal, a.y - cyLocal);
-        const db = Math.hypot(b.x - cxLocal, b.y - cyLocal);
-        return da < db ? a : b;
-      });
-      setTarget(nearest);
-    } else {
-      setTarget(null);
+    } else if (ranked.length > 0) {
+      primaryEnemy = ranked[0].enemy;
     }
+
+    if (!primaryEnemy) {
+      setTarget(null);
+      setNextTarget(null);
+      return;
+    }
+
+    setTarget(primaryEnemy);
+
+    const secondaryEntry = ranked.find(
+      (entry) => entry.enemy.id !== primaryEnemy.id
+    );
+    setNextTarget(secondaryEntry ? secondaryEntry.enemy : null);
   }, [enemies, target]);
 
   // check typed word kills target
@@ -404,6 +419,7 @@ export default function Game() {
   const typedPrefix = target ? target.word.slice(0, input.length) : "";
   const typedSuffix = target ? target.word.slice(input.length) : "";
   const inputDisplay = input.length > 0 ? input : "Start typing...";
+  const nextWord = nextTarget?.word || null;
 
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
@@ -484,6 +500,20 @@ export default function Game() {
         >
           ⌨️
         </div>
+
+        {nextWord && (
+          <div
+            className="absolute px-2.5 py-1 rounded-full border border-slate-600/40 bg-slate-900/75 text-[11px] font-semibold tracking-[0.25em] uppercase text-slate-300 shadow-lg shadow-slate-900/40"
+            style={{
+              left: cx,
+              top: cy - playerRadius - 60,
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            <span className="text-slate-500 mr-2 tracking-[0.35em]">Next</span>
+            <span className="text-slate-100 tracking-[0.2em]">{nextWord}</span>
+          </div>
+        )}
 
         <div
           className="absolute px-3 py-1 rounded-full border border-amber-400/40 bg-slate-900/85 text-sm font-semibold tracking-wide text-amber-200 shadow-lg shadow-amber-400/25 backdrop-blur-sm"

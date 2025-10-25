@@ -7,6 +7,7 @@ import audioInit from "../libs/audio-init";
 export default function Multiplayer({ socketData, onGameOver } = {}) {
   const [input, setInput] = useState("");
   const [target, setTarget] = useState(null);
+  const [nextTarget, setNextTarget] = useState(null);
   const [bullets, setBullets] = useState([]);
   const [hitEnemies, setHitEnemies] = useState(new Set());
   const [spectatorHitEnemies, setSpectatorHitEnemies] = useState(new Set());
