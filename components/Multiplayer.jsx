@@ -239,6 +239,10 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
     ? Math.hypot(target.x - cx, target.y - cy)
     : null;
 
+  const typedPrefix = target ? target.word.slice(0, input.length) : "";
+  const typedSuffix = target ? target.word.slice(input.length) : "";
+  const inputDisplay = input.length > 0 ? input : "Start typing...";
+
   // Get player info from server
   const serverPlayer =
     connected && match && roomPlayers
@@ -371,6 +375,40 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
               }}
             >
               ⌨️
+            </div>
+
+            <div
+              className="absolute px-3 py-1 rounded-full border border-amber-400/40 bg-slate-900/85 text-sm font-semibold tracking-wide text-amber-200 shadow-lg shadow-amber-400/25 backdrop-blur-sm"
+              style={{
+                left: cx,
+                top: cy - playerRadius - 28,
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              {target ? (
+                <span className="uppercase">
+                  <span className="text-emerald-300">{typedPrefix}</span>
+                  <span className="text-amber-200">{typedSuffix}</span>
+                </span>
+              ) : (
+                <span className="text-slate-300">Waiting...</span>
+              )}
+            </div>
+
+            <div
+              className="absolute px-3 py-1 rounded-full border border-slate-600/40 bg-slate-900/75 text-sm font-mono tracking-widest uppercase shadow-lg shadow-slate-900/40"
+              style={{
+                left: cx,
+                top: cy + playerRadius + 34,
+                transform: "translate(-50%, -50%)",
+                minWidth: 120,
+              }}
+            >
+              <span
+                className={input.length ? "text-emerald-300" : "text-slate-400"}
+              >
+                {inputDisplay}
+              </span>
             </div>
 
             {displayEnemies
