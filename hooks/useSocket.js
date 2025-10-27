@@ -306,5 +306,6 @@ export default function useSocket(
     leaveQueue,
     ready,
     sendHit,
+    playerId: socketRef.current?.id,
   };
 }

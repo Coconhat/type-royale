@@ -3,6 +3,7 @@ import Game from "../components/Game";
 import useSocket from "../hooks/useSocket";
 import MultiplayerClient from "../components/MultiplayerClient";
 import GithubButton from "../components/github-button";
+import AuthHeader from "../components/auth-header";
 
 export default function StartPage() {
   const [start, setStart] = useState(false);
@@ -12,8 +13,15 @@ export default function StartPage() {
 
   // create a single socket hook instance here and pass it down to children
   const socketHook = useSocket("https://type-royale-backend.onrender.com/");
-  const { connected, match, joinQueue, leaveQueue, ready, onlinePlayers } =
-    socketHook;
+  const {
+    connected,
+    match,
+    joinQueue,
+    leaveQueue,
+    ready,
+    onlinePlayers,
+    playerId,
+  } = socketHook;
 
   // Start local timer while searching for match
   useEffect(() => {
@@ -67,14 +75,25 @@ export default function StartPage() {
 
   return (
     <div className="mx-auto text-center mt-9 ">
+      {/* Auth buttons */}
+      <AuthHeader />
+
       <h1 className="p-5 font-bold text-slate-900  text-3xl">
         Welcome to Type Royale
       </h1>
       <p className="p-5 font-mono text-slate-900 text-bold text-3xl">
         Get ready to test your typing skills!
       </p>
-      <div className="flex flex-col md:flex-row items-center justify-center gap-4 mt-6">
+      {/* Compact status chip */}
+      <div
+        aria-live="polite"
+        className="flex items-center justify-center gap-3 mt-4"
+      >
+        <StatusChip connected={connected} onlinePlayers={onlinePlayers} />
+      </div>
+      <div className="flex items-center justify-center gap-4 mt-6">
         {/* Left: Match controls */}
+
         <div className="flex items-center gap-4">
           {/* FIND MATCH button (hidden while finding/matched) */}
           {!finding && !match && (
@@ -175,22 +194,8 @@ export default function StartPage() {
             </div>
           )}
         </div>
-
-        {/* Right: status & metrics */}
-        <div className="flex items-center gap-4">
-          {/* Transport warning (if applicable) */}
-          {connected && socketHook?.transport === "polling" && (
-            <div role="status" className="text-xs text-yellow-600">
-              Using polling — will upgrade to websocket
-            </div>
-          )}
-
-          {/* Compact status chip */}
-          <div aria-live="polite" className="flex items-center gap-3">
-            <StatusChip connected={connected} onlinePlayers={onlinePlayers} />
-          </div>
-        </div>
       </div>
+
       {/* Start Solo button */}
       <div className="mt-6 flex justify-center">
         <button
@@ -201,7 +206,9 @@ export default function StartPage() {
           Start Solo
         </button>
       </div>
-      {/* --- Small components used above (paste them once in the file) --- */}
+
+      <p className="mt-3">Your ID: {playerId}</p>
+
       <div className="fixed bottom-6 right-10">
         <GithubButton
           username="coconhat"
