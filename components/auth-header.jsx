@@ -5,6 +5,15 @@ export default function AuthHeader() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [user, setUser] = useState(null);
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+
+  const requireVerification = (email, message) => {
+    setVerificationEmail(email);
+    setShowVerification(true);
+    setStatusMessage(message || "Check your inbox to verify your account.");
+  };
 
   return (
     <>
@@ -17,7 +26,11 @@ export default function AuthHeader() {
             </span>
             <button
               className="flex items-center gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg hover:scale-105 transform transition"
-              onClick={() => setUser(null)}
+              onClick={() => {
+                setUser(null);
+                setStatusMessage("");
+                setShowVerification(false);
+              }}
             >
               Logout
             </button>
@@ -48,26 +61,61 @@ export default function AuthHeader() {
         )}
       </div>
 
+      {statusMessage && (
+        <div className="mt-2 text-sm text-white/80 text-right px-6">
+          {statusMessage}
+        </div>
+      )}
+
       {showLogin && (
         <LoginModal
           onClose={() => setShowLogin(false)}
           onLoginSuccess={(userData) => {
             setUser(userData);
+            setStatusMessage("");
             setShowLogin(false);
+            setShowVerification(false);
+          }}
+          onRequireVerification={(email, message) => {
+            setShowLogin(false);
+            requireVerification(
+              email,
+              message || "Please verify your email before logging in."
+            );
           }}
         />
       )}
       {showSignUp && (
         <SignUpModal
           onClose={() => setShowSignUp(false)}
-          onLoginSuccess={setUser}
+          onRequireVerification={(email, message) => {
+            setShowSignUp(false);
+            requireVerification(
+              email,
+              message || "Account created! Check your inbox to verify."
+            );
+          }}
+        />
+      )}
+      {showVerification && (
+        <VerificationModal
+          email={verificationEmail}
+          onClose={() => setShowVerification(false)}
+          onVerified={(verifiedUser) => {
+            setUser(verifiedUser);
+            setStatusMessage("");
+            setShowVerification(false);
+          }}
+          onResent={() =>
+            setStatusMessage("Verification email resent. Check your inbox.")
+          }
         />
       )}
     </>
   );
 }
 
-function LoginModal({ onClose, onLoginSuccess }) {
+function LoginModal({ onClose, onLoginSuccess, onRequireVerification }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,9 +143,25 @@ function LoginModal({ onClose, onLoginSuccess }) {
         const userData = await response.json();
         console.log("Login successful:", userData);
         onLoginSuccess(userData.user);
-      } else {
-        setError("Login failed. Please check your credentials.");
+        return;
       }
+
+      const errorBody = await response.json().catch(() => ({}));
+
+      if (response.status === 403 && errorBody?.code === "EMAIL_NOT_VERIFIED") {
+        onRequireVerification?.(
+          email,
+          errorBody?.message || "Please verify your email before logging in."
+        );
+        setError(
+          errorBody?.message || "Please verify your email before logging in."
+        );
+        return;
+      }
+
+      setError(
+        errorBody?.message || "Login failed. Please check your credentials."
+      );
     } catch (error) {
       console.error("Login failed:", error);
       setError("Login failed. Please try again.");
@@ -167,7 +231,8 @@ function LoginModal({ onClose, onLoginSuccess }) {
   );
 }
 
-function SignUpModal({ onClose, onLoginSuccess }) {
+function SignUpModal({ onClose, onRequireVerification }) {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -188,17 +253,27 @@ function SignUpModal({ onClose, onLoginSuccess }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          username: username.trim() || undefined,
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
         console.log("SignUp successful:", data);
-        onLoginSuccess(data.user);
-
-        onClose(); // Close modal on success
+        onRequireVerification?.(
+          email,
+          data?.message || "Account created. Check your inbox to verify."
+        );
+        setUsername("");
+        setEmail("");
+        setPassword("");
+        onClose();
       } else {
-        setError("Sign up failed. Please try again.");
+        const errorBody = await response.json().catch(() => ({}));
+        setError(errorBody?.message || "Sign up failed. Please try again.");
       }
     } catch (error) {
       console.error("SignUp failed:", error);
@@ -226,6 +301,13 @@ function SignUpModal({ onClose, onLoginSuccess }) {
           Create Account
         </h2>
         <form className="flex flex-col gap-4" onSubmit={handleSignUp}>
+          <input
+            type="text"
+            placeholder="Username (optional)"
+            className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
           <input
             type="email"
             placeholder="Email"
@@ -264,6 +346,146 @@ function SignUpModal({ onClose, onLoginSuccess }) {
             Log in
           </span>
         </p>
+      </div>
+    </div>
+  );
+}
+
+function VerificationModal({ email, onClose, onVerified, onResent }) {
+  const [token, setToken] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [feedback, setFeedback] = useState("");
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  const handleResend = async () => {
+    setResendLoading(true);
+    setFeedback("");
+
+    try {
+      const response = await fetch(API_BASE + "/auth/resend-verification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        setFeedback(body?.message || "Verification email resent.");
+        onResent?.();
+      } else {
+        setFeedback(body?.message || "Unable to resend verification email.");
+      }
+    } catch (error) {
+      console.error("Resend verification failed:", error);
+      setFeedback("Unable to resend verification email.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setVerifyLoading(true);
+    setFeedback("");
+
+    try {
+      const response = await fetch(API_BASE + "/auth/verify-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token: token.trim() }),
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        onVerified?.(body?.user);
+        setFeedback(body?.message || "Email verified!");
+        setToken("");
+        return;
+      }
+
+      setFeedback(
+        body?.message || "Verification failed. Check the token and try again."
+      );
+    } catch (error) {
+      console.error("Email verification failed:", error);
+      setFeedback("Verification failed. Please try again.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative">
+        <button
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          ✕
+        </button>
+
+        <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">
+          Verify your email
+        </h2>
+        <p className="text-sm text-gray-600 text-center mb-6">
+          We sent a verification link to{" "}
+          <span className="font-semibold">{email}</span>. Check your inbox (and
+          spam folder) to activate your account. You can also paste the
+          verification token below.
+        </p>
+
+        <form className="space-y-4" onSubmit={handleVerify}>
+          <input
+            type="text"
+            placeholder="Paste verification token"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:opacity-90 transition disabled:opacity-50"
+            disabled={verifyLoading || token.trim().length === 0}
+          >
+            {verifyLoading ? "Verifying..." : "Verify Email"}
+          </button>
+        </form>
+
+        <div className="mt-6 flex flex-col gap-3">
+          <button
+            type="button"
+            className="w-full py-3 rounded-lg border border-indigo-500 text-indigo-600 font-semibold hover:bg-indigo-50 transition disabled:opacity-50"
+            onClick={handleResend}
+            disabled={resendLoading}
+          >
+            {resendLoading ? "Resending..." : "Resend verification email"}
+          </button>
+          <button
+            type="button"
+            className="w-full py-3 rounded-lg border border-gray-300 text-gray-700 font-semibold hover:bg-gray-100 transition"
+            onClick={onClose}
+          >
+            I will verify later
+          </button>
+        </div>
+
+        {feedback && (
+          <div className="mt-4 text-sm text-center text-gray-700">
+            {feedback}
+          </div>
+        )}
       </div>
     </div>
   );
