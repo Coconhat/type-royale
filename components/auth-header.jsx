@@ -1,10 +1,24 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 const API_BASE = import.meta.env.VITE_API_BASE;
 
 export default function AuthHeader() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
   const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const storedUser = localStorage.getItem("authUser");
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (storageError) {
+      console.error("Failed to restore auth state from storage", storageError);
+      localStorage.removeItem("authUser");
+      localStorage.removeItem("authToken");
+    }
+  }, []);
 
   return (
     <>
@@ -17,7 +31,13 @@ export default function AuthHeader() {
             </span>
             <button
               className="flex items-center gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg hover:scale-105 transform transition"
-              onClick={() => setUser(null)}
+              onClick={() => {
+                setUser(null);
+                if (typeof window !== "undefined") {
+                  localStorage.removeItem("authToken");
+                  localStorage.removeItem("authUser");
+                }
+              }}
             >
               Logout
             </button>
@@ -94,6 +114,10 @@ function LoginModal({ onClose, onLoginSuccess }) {
       if (response.ok) {
         const userData = await response.json();
         console.log("Login successful:", userData);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("authToken", userData.token);
+          localStorage.setItem("authUser", JSON.stringify(userData.user));
+        }
         onLoginSuccess(userData.user);
       } else {
         setError("Login failed. Please check your credentials.");
@@ -194,6 +218,14 @@ function SignUpModal({ onClose, onLoginSuccess }) {
       if (response.ok) {
         const data = await response.json();
         console.log("SignUp successful:", data);
+        if (typeof window !== "undefined") {
+          if (data.token) {
+            localStorage.setItem("authToken", data.token);
+          }
+          if (data.user) {
+            localStorage.setItem("authUser", JSON.stringify(data.user));
+          }
+        }
         onLoginSuccess(data.user);
 
         onClose(); // Close modal on success
