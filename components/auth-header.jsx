@@ -26,7 +26,7 @@ export default function AuthHeader() {
               Welcome,{" "}
               {stackUser.displayName || stackUser.primaryEmail || "player"}
             </span>
-            <LogoutButton stackUser={stackUser} />
+            <LogoutButton />
           </>
         ) : (
           // Show login/signup buttons when not logged in
@@ -200,14 +200,13 @@ function LoginModal({ onClose }) {
   );
 }
 
-function LogoutButton({ stackUser }) {
+function LogoutButton() {
   const stackApp = useStackApp();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleLogout = async () => {
     setSigningOut(true);
     try {
-      await stackUser.auth.signOut();
       await stackApp.signOut({ noRedirect: true });
     } catch (signOutError) {
       console.error("Logout failed", signOutError);
