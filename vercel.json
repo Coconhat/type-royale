@@ -1,3 +1,6 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "routes": [
+    { "src": "/handler/oauth-callback", "dest": "/handler/oauth-callback/index.html" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }

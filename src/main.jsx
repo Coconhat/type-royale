@@ -20,16 +20,34 @@ export function Router() {
   }, []);
 
   useEffect(() => {
-    // Handle OAuth callback on mount if we're on the callback URL
-    if (location.includes("/handler/oauth-callback")) {
-      stackApp.callOAuthCallback().then((redirected) => {
-        if (!redirected) {
-          // Force navigation to home if Stack didn't redirect
-          window.location.href = window.location.origin;
-        }
-      });
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("code") || !params.has("state")) {
+      return;
     }
-  }, [location]);
+
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const redirected = await stackApp.callOAuthCallback();
+        if (redirected) {
+          return;
+        }
+      } catch (error) {
+        console.error("OAuth callback handling failed", error);
+      } finally {
+        if (isMounted) {
+          const url = window.location.pathname;
+          window.history.replaceState({}, "", url);
+          setLocation(url);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (location.startsWith("/handler")) {
     return <StackHandler app={stackApp} location={location} fullPage />;

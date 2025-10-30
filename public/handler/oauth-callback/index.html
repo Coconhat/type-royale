@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Processing sign-in…</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        var search = window.location.search || "";
+        var hash = window.location.hash || "";
+        var target =
+          "/" + (search.startsWith("?") ? search : search ? "?" + search : "");
+        if (hash) {
+          target += hash;
+        }
+        window.location.replace(target || "/");
+      })();
+    </script>
+  </body>
+</html>
