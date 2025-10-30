@@ -26,18 +26,7 @@ export default function AuthHeader() {
               Welcome,{" "}
               {stackUser.displayName || stackUser.primaryEmail || "player"}
             </span>
-            <button
-              className="flex items-center gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg hover:scale-105 transform transition"
-              onClick={async () => {
-                try {
-                  await stackUser.auth.signOut();
-                } catch (signOutError) {
-                  console.error("Logout failed", signOutError);
-                }
-              }}
-            >
-              Logout
-            </button>
+            <LogoutButton stackUser={stackUser} />
           </>
         ) : (
           // Show login/signup buttons when not logged in
@@ -208,6 +197,33 @@ function LoginModal({ onClose }) {
         </p>
       </div>
     </div>
+  );
+}
+
+function LogoutButton({ stackUser }) {
+  const stackApp = useStackApp();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleLogout = async () => {
+    setSigningOut(true);
+    try {
+      await stackUser.auth.signOut();
+      await stackApp.signOut({ noRedirect: true });
+    } catch (signOutError) {
+      console.error("Logout failed", signOutError);
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  return (
+    <button
+      className="flex items-center gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg hover:scale-105 transform transition disabled:opacity-50"
+      onClick={handleLogout}
+      disabled={signingOut}
+    >
+      {signingOut ? "Logging out…" : "Logout"}
+    </button>
   );
 }
 
