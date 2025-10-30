@@ -1,6 +1,10 @@
 {
   "routes": [
-    { "src": "/handler/oauth-callback", "dest": "/handler/oauth-callback/index.html" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "src": "/handler/oauth-callback",
+      "dest": "/handler/oauth-callback/index.html"
+    },
+      { "handle": "filesystem" },
+      { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
