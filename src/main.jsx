@@ -19,18 +19,6 @@ export function Router() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  useEffect(() => {
-    // Handle OAuth callback on mount if we're on the callback URL
-    if (location.includes("/handler/oauth-callback")) {
-      stackApp.callOAuthCallback().then((redirected) => {
-        if (!redirected) {
-          // Force navigation to home if Stack didn't redirect
-          window.location.href = window.location.origin;
-        }
-      });
-    }
-  }, [location]);
-
   if (location.startsWith("/handler")) {
     return <StackHandler app={stackApp} location={location} fullPage />;
   }

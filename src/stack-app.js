@@ -9,10 +9,6 @@ const stackApp = new StackClientApp({
   ...(projectId ? { projectId } : {}),
   ...(publishableClientKey ? { publishableClientKey } : {}),
   ...(baseUrl ? { baseUrl } : {}),
-  urls: {
-    afterSignIn: window.location.origin,
-    afterSignUp: window.location.origin,
-  },
 });
 
 export default stackApp;
