@@ -1,3 +1,4 @@
+import { useStackApp } from "@stackframe/react";
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 

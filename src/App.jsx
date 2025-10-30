@@ -74,14 +74,14 @@ export default function StartPage() {
   // If start was pressed in presence of a match, the above handles mounting Multiplayer
 
   return (
-    <div className="mx-auto text-center mt-9 ">
+    <div className="mx-auto text-center mt-9 text-slate-900 dark:text-slate-100">
       {/* Auth buttons */}
       <AuthHeader />
 
-      <h1 className="p-5 font-bold text-slate-900  text-3xl">
+      <h1 className="p-5 font-bold text-3xl text-slate-900 dark:text-slate-100">
         Welcome to Type Royale
       </h1>
-      <p className="p-5 font-mono text-slate-900 text-bold text-3xl">
+      <p className="p-5 font-mono text-3xl font-semibold text-slate-900 dark:text-slate-200">
         Get ready to test your typing skills!
       </p>
       {/* Compact status chip */}
@@ -125,11 +125,13 @@ export default function StartPage() {
 
           {/* FINDING card */}
           {finding && !match && (
-            <div className="flex items-center gap-4 p-4 bg-white/95 border rounded-lg shadow-sm min-w-[260px]">
+            <div className="flex items-center gap-4 p-4 bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm min-w-[260px]">
               <Spinner />
               <div className="flex flex-col">
-                <div className="font-medium text-slate-800">Finding match…</div>
-                <div className="text-sm text-slate-500">
+                <div className="font-medium text-slate-800 dark:text-slate-100">
+                  Finding match…
+                </div>
+                <div className="text-sm text-slate-500 dark:text-slate-300">
                   Elapsed: <span className="font-mono">{findSeconds}s</span>
                 </div>
               </div>
@@ -150,10 +152,10 @@ export default function StartPage() {
 
           {/* MATCHED card */}
           {match && (
-            <div className="flex items-center gap-4 p-4 bg-white/95 border rounded-lg shadow-sm min-w-[320px]">
+            <div className="flex items-center gap-4 p-4 bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm min-w-[320px]">
               <div className="flex flex-col">
-                <div className="text-sm text-slate-700"></div>
-                <div className="text-xs text-slate-400">
+                <div className="text-sm text-slate-700 dark:text-slate-100"></div>
+                <div className="text-xs text-slate-400 dark:text-slate-400">
                   {match.roomId ? `Room ${match.roomId}` : ""}
                 </div>
               </div>
@@ -199,7 +201,7 @@ export default function StartPage() {
       {/* Start Solo button */}
       <div className="mt-6 flex justify-center">
         <button
-          className="px-8 py-4 text-2xl rounded-2xl bg-slate-800 text-white font-mono shadow-lg hover:scale-[1.02] transition"
+          className="px-8 py-4 text-2xl rounded-2xl bg-slate-800 dark:bg-slate-700 text-white font-mono shadow-lg hover:scale-[1.02] transition"
           onClick={() => setStart(true)}
           aria-label="Start solo game"
         >
@@ -207,7 +209,9 @@ export default function StartPage() {
         </button>
       </div>
 
-      <p className="mt-3">Your ID: {playerId}</p>
+      <p className="mt-3 text-slate-700 dark:text-slate-300">
+        Your ID: {playerId}
+      </p>
 
       <div className="fixed bottom-6 right-10">
         <GithubButton
@@ -225,10 +229,14 @@ export default function StartPage() {
 function Spinner() {
   return (
     <div
-      className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center animate-pulse"
+      className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center animate-pulse"
       aria-hidden
     >
-      <svg className="w-5 h-5 text-slate-500" viewBox="0 0 24 24" fill="none">
+      <svg
+        className="w-5 h-5 text-slate-500 dark:text-slate-300"
+        viewBox="0 0 24 24"
+        fill="none"
+      >
         <path
           d="M12 2a10 10 0 100 20 10 10 0 000-20z"
           stroke="currentColor"
@@ -251,7 +259,7 @@ function Spinner() {
 
 function StatusChip({ connected, onlinePlayers = 0 }) {
   return (
-    <div className="flex items-center gap-2 bg-white/95 border px-3 py-1 rounded-full shadow-sm text-xs">
+    <div className="flex items-center gap-2 bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full shadow-sm text-xs">
       <div className="flex items-center gap-2">
         <span
           className={`inline-block w-2 h-2 rounded-full ${
@@ -263,7 +271,7 @@ function StatusChip({ connected, onlinePlayers = 0 }) {
           {connected ? "Online" : "Connecting…"}
         </span>
       </div>
-      <div className="ml-3 text-slate-500">
+      <div className="ml-3 text-slate-500 dark:text-slate-300">
         Players: <span className="font-mono ml-1">{onlinePlayers}</span>
       </div>
     </div>
