@@ -83,7 +83,7 @@ export default function Game() {
         return {
           spawnInterval: [600, 1000],
           speedRange: [1.2, 2.0],
-          burstChance: 0.25,
+          burstChance: 0.15,
           variety: 0.8,
           max: 7,
         };
@@ -91,7 +91,7 @@ export default function Game() {
         return {
           spawnInterval: [400, 700],
           speedRange: [1.8, 3.5],
-          burstChance: 0.4,
+          burstChance: 0.15,
           variety: 1.0,
           max: 7,
         };
