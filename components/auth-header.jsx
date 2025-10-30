@@ -1,23 +1,40 @@
 ﻿import { useState } from "react";
-const API_BASE = import.meta.env.VITE_API_BASE;
+import { useStackApp, useUser } from "@stackframe/react";
+
+function getErrorMessage(error, fallback) {
+  if (!error) return fallback;
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && "message" in error) {
+    return error.message || fallback;
+  }
+  return fallback;
+}
 
 export default function AuthHeader() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
-  const [user, setUser] = useState(null);
+  const stackUser = useUser();
 
   return (
     <>
       <div className="mt-2 flex items-center justify-end gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-grey-600 to-indigo-600 text-white shadow-lg transform transition">
-        {user ? (
+        {stackUser ? (
           // Show user email and logout when logged in
           <>
             <span className="text-black font-medium">
-              Welcome, {user?.username || user?.email || "player"}
+              Welcome,{" "}
+              {stackUser.displayName || stackUser.primaryEmail || "player"}
             </span>
             <button
               className="flex items-center gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg hover:scale-105 transform transition"
-              onClick={() => setUser(null)}
+              onClick={async () => {
+                try {
+                  await stackUser.auth.signOut();
+                } catch (signOutError) {
+                  console.error("Logout failed", signOutError);
+                }
+              }}
             >
               Logout
             </button>
@@ -48,33 +65,44 @@ export default function AuthHeader() {
         )}
       </div>
 
-      {showLogin && (
-        <LoginModal
-          onClose={() => setShowLogin(false)}
-          onLoginSuccess={(userData) => {
-            setUser(userData);
-            setShowLogin(false);
-          }}
-        />
-      )}
-      {showSignUp && (
-        <SignUpModal
-          onClose={() => setShowSignUp(false)}
-          onLoginSuccess={setUser}
-        />
-      )}
+      {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      {showSignUp && <SignUpModal onClose={() => setShowSignUp(false)} />}
     </>
   );
 }
 
-function LoginModal({ onClose, onLoginSuccess }) {
+function LoginModal({ onClose }) {
+  const stackApp = useStackApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const oauthProviders = [
+    { id: "github", label: "GitHub" },
+    { id: "google", label: "Google" },
+  ];
 
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) onClose();
+  };
+
+  const handleOAuth = async (providerId) => {
+    try {
+      const returnTo =
+        typeof window !== "undefined" ? window.location.href : undefined;
+      await stackApp.signInWithOAuth(
+        providerId,
+        returnTo ? { returnTo } : undefined
+      );
+    } catch (oauthErr) {
+      console.error(`OAuth sign-in with ${providerId} failed`, oauthErr);
+      setError(
+        getErrorMessage(
+          oauthErr,
+          "OAuth sign-in failed. Please try again or use email/password."
+        )
+      );
+    }
   };
 
   const handleLogin = async (e) => {
@@ -83,20 +111,22 @@ function LoginModal({ onClose, onLoginSuccess }) {
     setError("");
 
     try {
-      const response = await fetch(API_BASE + "/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      const result = await stackApp.signInWithCredential({
+        email,
+        password,
+        noRedirect: true,
       });
 
-      if (response.ok) {
-        const userData = await response.json();
-        console.log("Login successful:", userData);
-        onLoginSuccess(userData.user);
-      } else {
-        setError("Login failed. Please check your credentials.");
+      if (result.status === "ok") {
+        onClose();
+      }
+      if (result.status === "error") {
+        setError(
+          getErrorMessage(
+            result.error,
+            "Login failed. Please check your credentials."
+          )
+        );
       }
     } catch (error) {
       console.error("Login failed:", error);
@@ -153,6 +183,25 @@ function LoginModal({ onClose, onLoginSuccess }) {
             {loading ? "Logging in..." : "Log In"}
           </button>
         </form>
+        <div className="mt-6">
+          <div className="flex items-center gap-3">
+            <span className="flex-1 h-px bg-gray-200" aria-hidden />
+            <span className="text-sm text-gray-500">or continue with</span>
+            <span className="flex-1 h-px bg-gray-200" aria-hidden />
+          </div>
+          <div className="mt-4 grid gap-3">
+            {oauthProviders.map((provider) => (
+              <button
+                key={provider.id}
+                type="button"
+                onClick={() => handleOAuth(provider.id)}
+                className="flex items-center justify-center gap-2 w-full py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+              >
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <p className="mt-4 text-sm text-gray-600 text-center">
           Don’t have an account?{" "}
           <span
@@ -167,14 +216,38 @@ function LoginModal({ onClose, onLoginSuccess }) {
   );
 }
 
-function SignUpModal({ onClose, onLoginSuccess }) {
+function SignUpModal({ onClose }) {
+  const stackApp = useStackApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const oauthProviders = [
+    { id: "github", label: "GitHub" },
+    { id: "google", label: "Google" },
+  ];
 
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) onClose();
+  };
+
+  const handleOAuth = async (providerId) => {
+    try {
+      const returnTo =
+        typeof window !== "undefined" ? window.location.href : undefined;
+      await stackApp.signInWithOAuth(
+        providerId,
+        returnTo ? { returnTo } : undefined
+      );
+    } catch (oauthErr) {
+      console.error(`OAuth sign-in with ${providerId} failed`, oauthErr);
+      setError(
+        getErrorMessage(
+          oauthErr,
+          "OAuth sign-up failed. Please try again or use email/password."
+        )
+      );
+    }
   };
 
   const handleSignUp = async (e) => {
@@ -183,22 +256,38 @@ function SignUpModal({ onClose, onLoginSuccess }) {
     setError("");
 
     try {
-      const response = await fetch(API_BASE + "/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      const result = await stackApp.signUpWithCredential({
+        email,
+        password,
+        noRedirect: true,
+        noVerificationCallback: true,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        console.log("SignUp successful:", data);
-        onLoginSuccess(data.user);
+      if (result.status === "ok") {
+        // Ensure the newly created account is signed in before closing the modal.
+        const loginResult = await stackApp.signInWithCredential({
+          email,
+          password,
+          noRedirect: true,
+        });
 
-        onClose(); // Close modal on success
-      } else {
-        setError("Sign up failed. Please try again.");
+        if (loginResult.status === "error") {
+          setError(
+            getErrorMessage(
+              loginResult.error,
+              "Account created but automatic sign-in failed. Please sign in manually."
+            )
+          );
+          return;
+        }
+
+        onClose();
+      }
+
+      if (result.status === "error") {
+        setError(
+          getErrorMessage(result.error, "Sign up failed. Please try again.")
+        );
       }
     } catch (error) {
       console.error("SignUp failed:", error);
@@ -255,6 +344,25 @@ function SignUpModal({ onClose, onLoginSuccess }) {
             {loading ? "Creating Account..." : "Sign Up"}
           </button>
         </form>
+        <div className="mt-6">
+          <div className="flex items-center gap-3">
+            <span className="flex-1 h-px bg-gray-200" aria-hidden />
+            <span className="text-sm text-gray-500">or continue with</span>
+            <span className="flex-1 h-px bg-gray-200" aria-hidden />
+          </div>
+          <div className="mt-4 grid gap-3">
+            {oauthProviders.map((provider) => (
+              <button
+                key={provider.id}
+                type="button"
+                onClick={() => handleOAuth(provider.id)}
+                className="flex items-center justify-center gap-2 w-full py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+              >
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <p className="mt-4 text-sm text-gray-600 text-center">
           Already have an account?{" "}
           <span

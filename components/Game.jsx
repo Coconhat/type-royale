@@ -10,6 +10,7 @@ export default function Game() {
   const [target, setTarget] = useState(null);
   const [nextTarget, setNextTarget] = useState(null);
   const nextId = useRef(0);
+  const [score, setScore] = useState(0);
 
   const [bullets, setBullets] = useState([]);
   const [hitEnemies, setHitEnemies] = useState(new Set());
@@ -325,6 +326,10 @@ export default function Game() {
         prev.map((e) => (e.id === target.id ? { ...e, alive: false } : e))
       );
       setInput("");
+      setScore((prev) => {
+        const nextScore = prev + 100;
+        return nextScore;
+      });
       // play gunshot sound on success
       playGunshot();
     }
@@ -436,6 +441,11 @@ export default function Game() {
           ))}
           {hearts === 0 && <span className="text-sm text-slate-400"> (0)</span>}
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 mt-2">
+        <div className="font-medium">Score:</div>
+        <div className="text-xl font-semibold text-amber-400">{score}</div>
       </div>
 
       <div
@@ -666,11 +676,13 @@ export default function Game() {
           <div className="bg-white p-6 rounded-lg text-center">
             <h3 className="text-2xl font-bold mb-2">Game Over</h3>
             <div className="mb-4">You ran out of hearts.</div>
+            <div className="mb-4">Final Score: {score}</div>
             <button
               onClick={() => {
                 // minimal reset
                 setEnemies([]);
                 setHearts(3);
+                setScore(0);
                 setGameOver(false);
                 nextId.current = 0;
                 startTime.current = Date.now();
