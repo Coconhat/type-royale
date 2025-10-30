@@ -46,18 +46,24 @@ export default function Game() {
   const cy = height / 2;
   const spawnRadius = Math.min(width, height) / 2 - 40; // spawn on the circle
   const playerRadius = dims.current.playerRadius;
+  const SPAWN_INTERVAL_SCALE = 0.9;
 
   // spawn an enemy on the circle perimeter at random angle with dynamic spawn interval
   useEffect(() => {
     let mounted = true;
 
     // Get difficulty parameters based on current phase
+    const scaleInterval = ([min, max]) => [
+      min * SPAWN_INTERVAL_SCALE,
+      max * SPAWN_INTERVAL_SCALE,
+    ];
+
     function getDifficultyPhase(elapsedSec) {
       const progress = elapsedSec / totalGameSeconds;
 
       if (progress < 0.15) {
         return {
-          spawnInterval: [2000, 2500],
+          spawnInterval: scaleInterval([2000, 2500]),
           speedRange: [0.3, 0.5],
           burstChance: 0,
           variety: 0.2,
@@ -65,7 +71,7 @@ export default function Game() {
         };
       } else if (progress < 0.35) {
         return {
-          spawnInterval: [1200, 1800],
+          spawnInterval: scaleInterval([1200, 1800]),
           speedRange: [0.5, 0.9],
           burstChance: 0.1,
           variety: 0.4,
@@ -73,7 +79,7 @@ export default function Game() {
         };
       } else if (progress < 0.6) {
         return {
-          spawnInterval: [800, 1300],
+          spawnInterval: scaleInterval([800, 1300]),
           speedRange: [0.8, 1.4],
           burstChance: 0.15,
           variety: 0.6,
@@ -81,7 +87,7 @@ export default function Game() {
         };
       } else if (progress < 0.85) {
         return {
-          spawnInterval: [600, 1000],
+          spawnInterval: scaleInterval([600, 1000]),
           speedRange: [1.2, 2.0],
           burstChance: 0.15,
           variety: 0.8,
@@ -89,7 +95,7 @@ export default function Game() {
         };
       } else {
         return {
-          spawnInterval: [400, 700],
+          spawnInterval: scaleInterval([400, 700]),
           speedRange: [1.8, 3.5],
           burstChance: 0.15,
           variety: 1.0,
