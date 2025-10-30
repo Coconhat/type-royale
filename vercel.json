@@ -1,8 +1,9 @@
 {
+  "version": 2,
   "rewrites": [
     {
-      "source": "/handler/(.*)",
-      "destination": "/"
+      "source": "/handler/:path*",
+      "destination": "/index.html"
     }
   ]
 }
