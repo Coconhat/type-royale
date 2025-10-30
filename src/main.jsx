@@ -19,6 +19,36 @@ export function Router() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("code") || !params.has("state")) {
+      return;
+    }
+
+    let isMounted = true;
+
+    (async () => {
+      try {
+        const redirected = await stackApp.callOAuthCallback();
+        if (redirected) {
+          return;
+        }
+      } catch (error) {
+        console.error("OAuth callback handling failed", error);
+      } finally {
+        if (isMounted) {
+          const url = window.location.pathname;
+          window.history.replaceState({}, "", url);
+          setLocation(url);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   if (location.startsWith("/handler")) {
     return <StackHandler app={stackApp} location={location} fullPage />;
   }
