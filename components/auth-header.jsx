@@ -88,12 +88,7 @@ function LoginModal({ onClose }) {
 
   const handleOAuth = async (providerId) => {
     try {
-      const returnTo =
-        typeof window !== "undefined" ? window.location.href : undefined;
-      await stackApp.signInWithOAuth(
-        providerId,
-        returnTo ? { returnTo } : undefined
-      );
+      await stackApp.signInWithOAuth(providerId);
     } catch (oauthErr) {
       console.error(`OAuth sign-in with ${providerId} failed`, oauthErr);
       setError(
@@ -233,14 +228,9 @@ function SignUpModal({ onClose }) {
 
   const handleOAuth = async (providerId) => {
     try {
-      const returnTo =
-        typeof window !== "undefined" ? window.location.href : undefined;
-      await stackApp.signInWithOAuth(
-        providerId,
-        returnTo ? { returnTo } : undefined
-      );
+      await stackApp.signInWithOAuth(providerId);
     } catch (oauthErr) {
-      console.error(`OAuth sign-in with ${providerId} failed`, oauthErr);
+      console.error(`OAuth sign-up with ${providerId} failed`, oauthErr);
       setError(
         getErrorMessage(
           oauthErr,
