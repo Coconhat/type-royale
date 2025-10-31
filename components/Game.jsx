@@ -46,7 +46,8 @@ export default function Game() {
   const cy = height / 2;
   const spawnRadius = Math.min(width, height) / 2 - 40; // spawn on the circle
   const playerRadius = dims.current.playerRadius;
-  const SPAWN_INTERVAL_SCALE = 0.9;
+  const MAX_ALIVE_ENEMIES = 8;
+  const SPAWN_INTERVAL_SCALE = 0.8;
 
   // spawn an enemy on the circle perimeter at random angle with dynamic spawn interval
   useEffect(() => {
@@ -150,28 +151,51 @@ export default function Game() {
           ? Math.floor(Math.random() * 3) + 1
           : 1;
 
-      // Spawn zombie(s) — if burst, mark them slower
-      const newEnemies = [];
-      for (let i = 0; i < burstSize; i++) {
-        newEnemies.push(spawnEnemy(phase, burstSize > 1));
-      }
-      setEnemies((prev) => [...prev, ...newEnemies]);
+      let spawnedCount = 0;
+      let aliveCountForDelay = null;
+      setEnemies((prev) => {
+        const aliveCount = prev.filter((e) => e.alive && !e.reached).length;
+        aliveCountForDelay = aliveCount;
+
+        const availableSlots = MAX_ALIVE_ENEMIES - aliveCount;
+        if (availableSlots <= 0) {
+          return prev;
+        }
+
+        const spawnCount = Math.min(burstSize, availableSlots);
+        if (spawnCount <= 0) {
+          return prev;
+        }
+
+        const newEnemies = [];
+        for (let i = 0; i < spawnCount; i++) {
+          newEnemies.push(spawnEnemy(phase, spawnCount > 1));
+        }
+
+        spawnedCount = spawnCount;
+        aliveCountForDelay = aliveCount + spawnCount;
+        return [...prev, ...newEnemies];
+      });
 
       // Adaptive delay based on alive count
       const [minDelay, maxDelay] = phase.spawnInterval;
       let delay = Math.random() * (maxDelay - minDelay) + minDelay;
 
-      setEnemies((current) => {
-        const aliveCount = current.filter((e) => e.alive && !e.reached).length;
-        if (aliveCount > 20) delay *= 1.5;
-        else if (aliveCount < 5) delay *= 0.85;
-        return current;
-      });
+      if (aliveCountForDelay !== null) {
+        if (aliveCountForDelay > 20) delay *= 1.5;
+        else if (aliveCountForDelay < 5) delay *= 0.85;
+      }
 
       // If burst, add small delay between spawns in burst
-      if (burstSize > 1) {
+      if (spawnedCount > 1) {
         // small gap between burst members but they were already slower
         delay = 220;
+      } else if (
+        spawnedCount === 0 &&
+        typeof aliveCountForDelay === "number" &&
+        aliveCountForDelay >= MAX_ALIVE_ENEMIES
+      ) {
+        delay = Math.max(delay, 300);
       }
 
       // schedule next spawn and keep ref

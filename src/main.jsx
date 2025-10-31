@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { StackProvider, StackHandler } from "@stackframe/react";
 import "./index.css";
 import App from "./App.jsx";
+import TimeAttack from "../components/time-attack";
 import stackApp from "./stack-app.js";
 
 export function Router() {
@@ -51,6 +52,11 @@ export function Router() {
 
   if (location.startsWith("/handler")) {
     return <StackHandler app={stackApp} location={location} fullPage />;
+  }
+
+  const [pathname] = location.split("?");
+  if (pathname === "/test") {
+    return <TimeAttack />;
   }
 
   return <App />;
