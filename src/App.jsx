@@ -190,7 +190,7 @@ export default function StartPage() {
           <ModeOption
             badge="TA"
             title="Time Attack"
-            subtitle="Clear as many phrases as you can in 15 seconds"
+            subtitle="Clear as many phrases as you can in 20 seconds"
             accent="from-teal-500 via-emerald-500 to-lime-500"
             cta="Enter Time Attack"
             onClick={() => navigate("/time-attack")}
