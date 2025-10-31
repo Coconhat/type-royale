@@ -4,6 +4,7 @@ import useSocket from "../hooks/useSocket";
 import MultiplayerClient from "../components/MultiplayerClient";
 import GithubButton from "../components/github-button";
 import AuthHeader from "../components/auth-header";
+import { useNavigation } from "./navigation-context";
 
 export default function StartPage() {
   const [start, setStart] = useState(false);
@@ -11,8 +12,8 @@ export default function StartPage() {
   const [findSeconds, setFindSeconds] = useState(0);
   const [autoCountdown, setAutoCountdown] = useState(null);
 
-  // create a single socket hook instance here and pass it down to children
   const socketHook = useSocket("https://type-royale-backend.onrender.com/");
+  const navigate = useNavigation();
   const {
     connected,
     match,
@@ -196,6 +197,15 @@ export default function StartPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-6 flex justify-center">
+        <button
+          onClick={() => navigate("/time-attack")}
+          className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold shadow-lg hover:scale-[1.02] transition"
+        >
+          Time Attack Mode
+        </button>
       </div>
 
       {/* Start Solo button */}

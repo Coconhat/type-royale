@@ -1,10 +1,11 @@
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { StackProvider, StackHandler } from "@stackframe/react";
 import "./index.css";
 import App from "./App.jsx";
 import TimeAttack from "../components/time-attack";
 import stackApp from "./stack-app.js";
+import { NavigationContext } from "./navigation-context";
 
 export function Router() {
   const [location, setLocation] = useState(
@@ -50,16 +51,40 @@ export function Router() {
     };
   }, []);
 
+  const navigate = useCallback(
+    (path) => {
+      if (!path || typeof path !== "string") {
+        return;
+      }
+      const current = window.location.pathname + window.location.search;
+      if (path === current) return;
+      window.history.pushState({}, "", path);
+      setLocation(path);
+    },
+    []
+  );
+
   if (location.startsWith("/handler")) {
-    return <StackHandler app={stackApp} location={location} fullPage />;
+    return (
+      <NavigationContext.Provider value={navigate}>
+        <StackHandler app={stackApp} location={location} fullPage />
+      </NavigationContext.Provider>
+    );
   }
 
   const [pathname] = location.split("?");
-  if (pathname === "/test") {
-    return <TimeAttack />;
+  let content;
+  if (pathname === "/time-attack") {
+    content = <TimeAttack />;
+  } else {
+    content = <App />;
   }
 
-  return <App />;
+  return (
+    <NavigationContext.Provider value={navigate}>
+      {content}
+    </NavigationContext.Provider>
+  );
 }
 
 createRoot(document.getElementById("root")).render(
