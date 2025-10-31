@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { allWords } from "../libs/words";
 
 export default function TimeAttack() {
-  const words = allWords;
-  const TOTAL_TIME_MS = 15000;
+  const words = useMemo(() => allWords, []);
+  const TOTAL_TIME_MS = 20000;
 
-  function getRandomPhrase() {
+  const getRandomPhrase = useCallback(() => {
     const wordsPerPhrase = 10;
     const phrase = [];
 
@@ -17,7 +17,7 @@ export default function TimeAttack() {
     }
 
     return phrase.join(" ");
-  }
+  }, [words]);
 
   const [phrase, setPhrase] = useState(() => getRandomPhrase());
 
@@ -29,11 +29,35 @@ export default function TimeAttack() {
 
   const inputRef = useRef(null);
 
+  const handleRestart = useCallback(() => {
+    setPhrase(getRandomPhrase());
+    setInputValue("");
+    setRemainingMs(TOTAL_TIME_MS);
+    setIsRunning(false);
+    setTimeUp(false);
+    setCompleted(0);
+    if (inputRef.current) {
+      inputRef.current.focus({ preventScroll: true });
+    }
+  }, [getRandomPhrase]);
+
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus({ preventScroll: true });
     }
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        handleRestart();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleRestart]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -104,18 +128,6 @@ export default function TimeAttack() {
   const mistakes = characters.filter((c) => c.status === "incorrect").length;
   const secondsLeft = Math.ceil(remainingMs / 1000);
 
-  function handleRestart() {
-    setPhrase(getRandomPhrase());
-    setInputValue("");
-    setRemainingMs(TOTAL_TIME_MS);
-    setIsRunning(false);
-    setTimeUp(false);
-    setCompleted(0);
-    if (inputRef.current) {
-      inputRef.current.focus({ preventScroll: true });
-    }
-  }
-
   return (
     <div
       className="min-h-screen bg-[#1c1c1c] flex items-center justify-center p-6"
@@ -178,7 +190,7 @@ export default function TimeAttack() {
               Time's up! You completed {completed} phrases.
             </p>
             <p className="text-slate-400 text-sm mt-1">
-              Click anywhere to restart or use the button below
+              press Left Tab to restart or use the button below
             </p>
           </div>
         )}
