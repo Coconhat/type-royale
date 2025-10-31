@@ -18,11 +18,11 @@ export default function AuthHeader() {
 
   return (
     <>
-      <div className="mt-2 flex items-center justify-end gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-grey-600 to-indigo-600 text-white shadow-lg transform transition">
+      <div className="mt-2 flex items-center justify-end gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-slate-700 via-indigo-700 to-indigo-600 text-white shadow-lg transform transition dark:from-slate-900 dark:via-indigo-900 dark:to-indigo-800">
         {stackUser ? (
           // Show user email and logout when logged in
           <>
-            <span className="text-black font-medium">
+            <span className="text-white font-medium">
               Welcome,{" "}
               {stackUser.displayName || stackUser.primaryEmail || "player"}
             </span>
