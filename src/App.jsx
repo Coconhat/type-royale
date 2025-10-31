@@ -35,11 +35,9 @@ export default function StartPage() {
   }, [finding]);
 
   // When a match is found, immediately start the countdown and mount Multiplayer
-  // The Multiplayer component will send "ready" and wait for matchStart from server
   useEffect(() => {
     if (match) {
       setFinding(false);
-      // Short countdown before starting
       setAutoCountdown(2);
       const cd = setInterval(() => {
         setAutoCountdown((c) => {
@@ -65,171 +63,152 @@ export default function StartPage() {
     setAutoCountdown(null);
   };
 
-  // If the user manually starts single-player, go to Game (no socketData)
   if (start && !match) return <Game />;
-  // If matched, render Multiplayer component with socketHook
   if (match)
     return (
       <MultiplayerClient socketData={socketHook} onGameOver={handleGameOver} />
     );
-  // If start was pressed in presence of a match, the above handles mounting Multiplayer
 
   return (
-    <div className="mx-auto text-center mt-9 text-slate-900 dark:text-slate-100">
-      {/* Auth buttons */}
-      <AuthHeader />
+    <div className="min-h-screen bg-[#060612] text-white">
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-12 space-y-12">
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-4">
+            <p className="text-xs uppercase tracking-[0.45em] text-slate-500">
+              Welcome to
+            </p>
+            <h1 className="text-5xl font-black tracking-wide text-white drop-shadow-lg md:text-6xl">
+              Type Royale
+            </h1>
+            <p className="text-lg text-slate-300 md:text-xl">
+              Choose a mode and start typing your way to victory.
+            </p>
+            <StatusChip connected={connected} onlinePlayers={onlinePlayers} />
+          </div>
+          <div className="self-end md:self-auto md:translate-y-2">
+            <AuthHeader />
+          </div>
+        </div>
 
-      <h1 className="p-5 font-bold text-3xl text-slate-900 dark:text-slate-100">
-        Welcome to Type Royale
-      </h1>
-      <p className="p-5 font-mono text-3xl font-semibold text-slate-900 dark:text-slate-200">
-        Get ready to test your typing skills!
-      </p>
-      {/* Compact status chip */}
-      <div
-        aria-live="polite"
-        className="flex items-center justify-center gap-3 mt-4"
-      >
-        <StatusChip connected={connected} onlinePlayers={onlinePlayers} />
-      </div>
-      <div className="flex items-center justify-center gap-4 mt-6">
-        {/* Left: Match controls */}
-
-        <div className="flex items-center gap-4">
-          {/* FIND MATCH button (hidden while finding/matched) */}
+        <div className="space-y-6">
           {!finding && !match && (
-            <button
+            <ModeOption
+              badge="MP"
+              title="Multiplayer"
+              subtitle="Battle real opponents in real time"
+              accent="from-fuchsia-500 via-purple-600 to-indigo-600"
+              cta="Find Match"
               onClick={() => {
                 joinQueue();
                 setFinding(true);
               }}
-              aria-pressed="false"
-              className="flex items-center gap-3 px-6 py-3 text-lg rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:scale-105 transform transition"
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M12 5v14M5 12h14"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Find Match
-            </button>
+            />
           )}
 
-          {/* FINDING card */}
           {finding && !match && (
-            <div className="flex items-center gap-4 p-4 bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm min-w-[260px]">
-              <Spinner />
-              <div className="flex flex-col">
-                <div className="font-medium text-slate-800 dark:text-slate-100">
-                  Finding match…
-                </div>
-                <div className="text-sm text-slate-500 dark:text-slate-300">
-                  Elapsed: <span className="font-mono">{findSeconds}s</span>
-                </div>
-              </div>
-
-              <div className="ml-4 flex gap-2">
+            <ModeStatus
+              badge="MP"
+              title="Searching For Opponents"
+              subtitle="Hang tight while we find the perfect lobby"
+              accent="from-sky-500 via-blue-600 to-indigo-700"
+              footer={
                 <button
                   onClick={() => {
                     leaveQueue();
                     setFinding(false);
                   }}
-                  className="px-3 py-1 bg-red-600 text-white rounded-md shadow-sm hover:opacity-95 transition"
+                  className="rounded-xl bg-rose-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-rose-400"
                 >
-                  Cancel
+                  Cancel Search
                 </button>
+              }
+            >
+              <div className="flex items-center gap-4">
+                <Spinner />
+                <div className="text-slate-100">
+                  <div className="text-lg font-semibold">Elapsed</div>
+                  <div className="font-mono text-2xl text-sky-200">
+                    {findSeconds}s
+                  </div>
+                </div>
               </div>
-            </div>
+            </ModeStatus>
           )}
 
-          {/* MATCHED card */}
           {match && (
-            <div className="flex items-center gap-4 p-4 bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm min-w-[320px]">
-              <div className="flex flex-col">
-                <div className="text-sm text-slate-700 dark:text-slate-100"></div>
-                <div className="text-xs text-slate-400 dark:text-slate-400">
-                  {match.roomId ? `Room ${match.roomId}` : ""}
+            <ModeStatus
+              badge="MP"
+              title="Match Found"
+              subtitle={
+                match.roomId ? `Room ${match.roomId}` : "Preparing arena"
+              }
+              accent="from-emerald-500 via-teal-500 to-cyan-500"
+              footer={
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => {
+                      if (match?.roomId) ready(match.roomId);
+                      setStart(true);
+                    }}
+                    className="flex-1 min-w-[160px] rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-emerald-400"
+                  >
+                    Start Now
+                  </button>
+                  <button
+                    onClick={() => {
+                      leaveQueue();
+                      setFinding(false);
+                      setStart(false);
+                    }}
+                    className="flex-1 min-w-[160px] rounded-xl bg-slate-700 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-600"
+                  >
+                    Leave Match
+                  </button>
+                </div>
+              }
+            >
+              <div className="flex items-center gap-6 text-slate-100">
+                <div className="text-6xl font-bold text-emerald-300">
+                  {autoCountdown ?? "GO"}
+                </div>
+                <div className="text-base text-slate-300">
+                  Get ready! The arena opens in a moment.
                 </div>
               </div>
-
-              {/* Countdown */}
-              <div className="ml-2">
-                {autoCountdown !== null ? (
-                  <div className="text-lg font-bold">{autoCountdown}s</div>
-                ) : (
-                  <div className="text-sm text-emerald-600">Starting…</div>
-                )}
-              </div>
-
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    if (match?.roomId) ready(match.roomId);
-                    setStart(true);
-                  }}
-                  className="px-3 py-1 bg-green-600 text-white rounded-md shadow-sm hover:brightness-105 transition"
-                  aria-label="Start match now"
-                >
-                  Start Now
-                </button>
-
-                <button
-                  onClick={() => {
-                    leaveQueue();
-                    setFinding(false);
-                    setStart(false);
-                  }}
-                  className="px-3 py-1 bg-red-600 text-white rounded-md shadow-sm hover:brightness-95 transition"
-                  aria-label="Leave match"
-                >
-                  Leave
-                </button>
-              </div>
-            </div>
+            </ModeStatus>
           )}
+
+          <ModeOption
+            badge="SP"
+            title="Classic"
+            subtitle="Sharpen your accuracy without pressure"
+            accent="from-blue-500 via-indigo-500 to-purple-500"
+            cta="Launch Solo"
+            onClick={() => setStart(true)}
+          />
+
+          <ModeOption
+            badge="TA"
+            title="Time Attack"
+            subtitle="Clear as many phrases as you can in 15 seconds"
+            accent="from-teal-500 via-emerald-500 to-lime-500"
+            cta="Enter Time Attack"
+            onClick={() => navigate("/time-attack")}
+          />
+        </div>
+
+        <div className="text-center text-sm text-slate-500">
+          Player ID:{" "}
+          <span className="font-mono text-slate-300">{playerId}</span>
         </div>
       </div>
 
-      <div className="mt-6 flex justify-center">
-        <button
-          onClick={() => navigate("/time-attack")}
-          className="px-6 py-3 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold shadow-lg hover:scale-[1.02] transition"
-        >
-          Time Attack Mode
-        </button>
-      </div>
-
-      {/* Start Solo button */}
-      <div className="mt-6 flex justify-center">
-        <button
-          className="px-8 py-4 text-2xl rounded-2xl bg-slate-800 dark:bg-slate-700 text-white font-mono shadow-lg hover:scale-[1.02] transition"
-          onClick={() => setStart(true)}
-          aria-label="Start solo game"
-        >
-          Start Solo
-        </button>
-      </div>
-
-      <p className="mt-3 text-slate-700 dark:text-slate-300">
-        Your ID: {playerId}
-      </p>
-
-      <div className="fixed bottom-6 right-10">
+      <div className="fixed bottom-6 right-6">
         <GithubButton
           username="coconhat"
           repo="type-royale"
           showStars={true}
           token="your-github-token"
-          className="mt-4"
         />
       </div>
     </div>
@@ -238,51 +217,113 @@ export default function StartPage() {
 
 function Spinner() {
   return (
-    <div
-      className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center animate-pulse"
-      aria-hidden
-    >
-      <svg
-        className="w-5 h-5 text-slate-500 dark:text-slate-300"
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <path
-          d="M12 2a10 10 0 100 20 10 10 0 000-20z"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          opacity="0.25"
-        />
-        <path
-          d="M22 12a10 10 0 00-10-10"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+    <div className="relative h-12 w-12">
+      <div className="absolute inset-0 rounded-full border border-white/10" />
+      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-emerald-300 animate-spin" />
     </div>
   );
 }
 
 function StatusChip({ connected, onlinePlayers = 0 }) {
   return (
-    <div className="flex items-center gap-2 bg-white/95 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-full shadow-sm text-xs">
+    <div className="inline-flex items-center gap-4 rounded-full border border-white/10 bg-[#121223] px-6 py-3 shadow-lg shadow-black/30">
       <div className="flex items-center gap-2">
         <span
-          className={`inline-block w-2 h-2 rounded-full ${
-            connected ? "bg-emerald-500" : "bg-yellow-400"
+          className={`inline-block h-3 w-3 rounded-full ${
+            connected ? "bg-emerald-400" : "bg-amber-300"
           }`}
-          aria-hidden
         />
-        <span className="font-medium">
-          {connected ? "Online" : "Connecting…"}
+        <span className="text-sm font-semibold text-white">
+          {connected ? "Online" : "Connecting"}
         </span>
       </div>
-      <div className="ml-3 text-slate-500 dark:text-slate-300">
-        Players: <span className="font-mono ml-1">{onlinePlayers}</span>
+      <div className="h-4 w-px bg-white/10" />
+      <div className="text-sm text-slate-300">
+        <span className="font-mono text-white">{onlinePlayers}</span> players
+        queued
+      </div>
+    </div>
+  );
+}
+
+function ModeOption({
+  badge,
+  title,
+  subtitle,
+  accent,
+  cta,
+  onClick,
+  disabled,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`group relative w-full overflow-hidden rounded-2xl border border-white/5 bg-[#141427] shadow-2xl transition transform hover:scale-[1.01] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-60`}
+    >
+      <div
+        className={`absolute inset-0 bg-gradient-to-r ${accent} opacity-80`}
+      />
+      <div className="absolute inset-0 bg-black/30" />
+      <div className="relative z-10 flex h-28 items-center justify-between px-8">
+        <div className="flex items-center gap-6">
+          <div className="rounded-lg bg-black/30 px-4 py-2 text-3xl font-black tracking-wider text-white">
+            {badge}
+          </div>
+          <div>
+            <div className="text-3xl font-bold text-white drop-shadow-sm">
+              {title}
+            </div>
+            <div className="mt-1 text-xs uppercase tracking-[0.35em] text-white/70">
+              {subtitle}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 text-lg font-semibold text-white/90">
+          <span>{cta}</span>
+          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M9 18l6-6-6-6"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function ModeStatus({ badge, title, subtitle, accent, children, footer }) {
+  return (
+    <div className="relative w-full overflow-hidden rounded-2xl border border-white/5 bg-[#141427] shadow-2xl">
+      <div
+        className={`absolute inset-0 bg-gradient-to-r ${accent} opacity-70`}
+      />
+      <div className="absolute inset-0 bg-black/50" />
+      <div className="relative z-10 flex flex-col gap-6 px-8 py-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="rounded-lg bg-black/30 px-4 py-2 text-3xl font-black tracking-wider text-white">
+              {badge}
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-white drop-shadow-sm">
+                {title}
+              </div>
+              <div className="mt-1 text-xs uppercase tracking-[0.35em] text-white/70">
+                {subtitle}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>{children}</div>
+
+        {footer && <div className="pt-2">{footer}</div>}
       </div>
     </div>
   );

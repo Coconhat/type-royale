@@ -51,18 +51,15 @@ export function Router() {
     };
   }, []);
 
-  const navigate = useCallback(
-    (path) => {
-      if (!path || typeof path !== "string") {
-        return;
-      }
-      const current = window.location.pathname + window.location.search;
-      if (path === current) return;
-      window.history.pushState({}, "", path);
-      setLocation(path);
-    },
-    []
-  );
+  const navigate = useCallback((path) => {
+    if (!path || typeof path !== "string") {
+      return;
+    }
+    const current = window.location.pathname + window.location.search;
+    if (path === current) return;
+    window.history.pushState({}, "", path);
+    setLocation(path);
+  }, []);
 
   if (location.startsWith("/handler")) {
     return (
