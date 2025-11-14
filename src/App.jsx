@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Game from "../components/Game";
 import useSocket from "../hooks/useSocket";
 import MultiplayerClient from "../components/MultiplayerClient";
@@ -11,6 +11,7 @@ export default function StartPage() {
   const [finding, setFinding] = useState(false);
   const [findSeconds, setFindSeconds] = useState(0);
   const [autoCountdown, setAutoCountdown] = useState(null);
+  const bgmRef = useRef(null);
 
   const socketHook = useSocket("https://type-royale-backend.onrender.com/");
   const navigate = useNavigation();
@@ -23,6 +24,51 @@ export default function StartPage() {
     onlinePlayers,
     playerId,
   } = socketHook;
+
+  useEffect(() => {
+    if (!bgmRef.current) {
+      const audio = new Audio("/MainMenu.mp3");
+      audio.loop = true;
+      audio.preload = "auto";
+      audio.volume = 0.4;
+      audio.addEventListener("error", (e) =>
+        console.warn("MainMenu.mp3 failed to load", e)
+      );
+      audio.addEventListener("play", () =>
+        console.log("Main menu music playing")
+      );
+      bgmRef.current = audio;
+    }
+    if (!start && !match) {
+      if (bgmRef.current.paused) {
+        bgmRef.current.play().catch((err) => {
+          console.log("Autoplay blocked, will wait for user gesture.", err);
+        });
+      }
+    } else {
+      if (!bgmRef.current.paused) bgmRef.current.pause();
+    }
+    return () => {
+      bgmRef.current && bgmRef.current.pause();
+    };
+  }, [start, match]);
+
+  // unlock audio on first user interaction if autoplay was blocked
+  useEffect(() => {
+    const unlock = () => {
+      if (bgmRef.current && bgmRef.current.paused && !start && !match) {
+        bgmRef.current.play().catch(() => {});
+      }
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+    document.addEventListener("pointerdown", unlock);
+    document.addEventListener("keydown", unlock);
+    return () => {
+      document.removeEventListener("pointerdown", unlock);
+      document.removeEventListener("keydown", unlock);
+    };
+  }, [start, match]);
 
   // Start local timer while searching for match
   useEffect(() => {
