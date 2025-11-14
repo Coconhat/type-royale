@@ -102,6 +102,14 @@ export const commonWords = [
   "day",
   "most",
   "us",
+  "man",
+  "find",
+  "here",
+  "thing",
+  "last",
+  "need",
+  "tell",
+  "old",
 ];
 
 export const mediumWords = [
@@ -186,6 +194,14 @@ export const mediumWords = [
   "learn",
   "under",
   "family",
+  "show",
+  "play",
+  "right",
+  "talk",
+  "music",
+  "today",
+  "watch",
+  "white",
 ];
 
 export const hardWords = [
@@ -239,6 +255,14 @@ export const hardWords = [
   "island",
   "wisdom",
   "mystery",
+  "puzzle",
+  "wizard",
+  "crystal",
+  "elixir",
+  "phantom",
+  "vortex",
+  "quiver",
+  "zenith",
 ];
 
 // optional merged export
