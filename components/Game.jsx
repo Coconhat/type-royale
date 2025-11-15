@@ -710,9 +710,9 @@ export default function Game() {
       {gameOver && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg text-center">
-            <h3 className="text-2xl font-bold mb-2">Game Over</h3>
-            <div className="mb-4">You ran out of hearts.</div>
-            <div className="mb-4">Final Score: {score}</div>
+            <h3 className="text-2xl font-bold mb-2 dark:text-black">Game Over</h3>
+            <div className="mb-4 dark:text-black">You ran out of hearts.</div>
+            <div className="mb-4 dark:text-black">Final Score: {score}</div>
             <button
               onClick={() => {
                 // minimal reset
