@@ -459,7 +459,7 @@ export default function Game() {
   const inputClass = (() => {
     if (!input) return "text-slate-400";
     if (target && !target.word.startsWith(input)) return "text-red-400 font-bold";
-    return "text-emerald-300";
+    return "text-white";
     })();
 
   return (
