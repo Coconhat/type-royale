@@ -456,6 +456,12 @@ export default function Game() {
   const inputDisplay = input.length > 0 ? input : "Start typing...";
   const nextWord = nextTarget?.word || null;
 
+  const inputClass = (() => {
+    if (!input) return "text-slate-400";
+    if (target && !target.word.startsWith(input)) return "text-red-400 font-bold";
+    return "text-emerald-300";
+    })();
+
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
       <h2 className="text-2xl font-bold">Type royale 🧟</h2>
@@ -565,8 +571,8 @@ export default function Game() {
         >
           {target ? (
             <span className="uppercase">
-              <span className="text-emerald-300">{typedPrefix}</span>
-              <span className="text-amber-200">{typedSuffix}</span>
+              <span >{typedPrefix}</span>
+              <span className={inputClass}>{typedSuffix}</span>
             </span>
           ) : (
             <span className="text-slate-300">Waiting...</span>
@@ -583,7 +589,7 @@ export default function Game() {
           }}
         >
           <span
-            className={input.length ? "text-emerald-300" : "text-slate-400"}
+            className={inputClass}
           >
             {inputDisplay}
           </span>
