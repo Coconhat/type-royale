@@ -1,4 +1,5 @@
 ﻿import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useStackApp } from "@stackframe/react";
 import usePlayerStats from "../hooks/usePlayerStats";
 
@@ -127,10 +128,16 @@ function LoginModal({ onClose }) {
     }
   };
 
-  return (
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative">
         <button
@@ -203,7 +210,8 @@ function LoginModal({ onClose }) {
           </span>
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -309,10 +317,16 @@ function SignUpModal({ onClose }) {
     }
   };
 
-  return (
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={handleBackdropClick}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative">
         <button
@@ -385,6 +399,7 @@ function SignUpModal({ onClose }) {
           </span>
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
