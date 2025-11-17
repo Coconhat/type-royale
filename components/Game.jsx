@@ -69,14 +69,48 @@ export default function Game() {
 
   // game dimensions (px) - keep stable refs so effects don't require them as deps
   const dims = useRef({ width: 1280, height: 600, playerRadius: 22 });
-  const width = dims.current.width;
-  const height = dims.current.height;
+  const [arenaSize, setArenaSize] = useState({
+    width: dims.current.width,
+    height: dims.current.height,
+  });
+  const width = arenaSize.width;
+  const height = arenaSize.height;
   const cx = width / 2;
   const cy = height / 2;
-  const spawnRadius = Math.min(width, height) / 2 - 40; // spawn on the circle
   const playerRadius = dims.current.playerRadius;
   const BASE_MAX_ALIVE = 8;
   const SPAWN_INTERVAL_SCALE = 0.8;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateArenaSize = () => {
+      const maxWidth = 1280;
+      const layoutClamp = 1152; // matches max-w-6xl shell width
+      const maxHeight = 600;
+      const minWidth = 520;
+      const minHeight = 420;
+      const gutterX = 48;
+      const gutterY = 220;
+      const nextWidth = Math.max(
+        minWidth,
+        Math.min(maxWidth, window.innerWidth - gutterX, layoutClamp)
+      );
+      const nextHeight = Math.max(
+        minHeight,
+        Math.min(maxHeight, window.innerHeight - gutterY)
+      );
+      dims.current = {
+        ...dims.current,
+        width: nextWidth,
+        height: nextHeight,
+      };
+      setArenaSize({ width: nextWidth, height: nextHeight });
+    };
+
+    updateArenaSize();
+    window.addEventListener("resize", updateArenaSize);
+    return () => window.removeEventListener("resize", updateArenaSize);
+  }, []);
 
   const registerComboWin = useCallback(() => {
     setCombo((prevCombo) => {
@@ -169,6 +203,10 @@ export default function Game() {
     }
 
     function spawnEnemy(phase, isBurst = false) {
+      const { width, height } = dims.current;
+      const cx = width / 2;
+      const cy = height / 2;
+      const spawnRadius = Math.min(width, height) / 2 - 40;
       const angle = Math.random() * Math.PI * 2;
       const x = cx + Math.cos(angle) * spawnRadius;
       const y = cy + Math.sin(angle) * spawnRadius;
@@ -290,6 +328,9 @@ export default function Game() {
 
     const tickMs = 60; // zombie tick
     const move = setInterval(() => {
+      const { width, height, playerRadius } = dims.current;
+      const cx = width / 2;
+      const cy = height / 2;
       const now = Date.now();
       const elapsedSec = Math.floor((now - startTime.current) / 1000);
       // ramp global speed so late-game zombies sprint harder
