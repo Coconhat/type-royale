@@ -1,4 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { allWords } from "../libs/words";
 import audioInit from "../libs/audio-init";
@@ -14,6 +20,14 @@ export default function Game() {
   const [score, setScore] = useState(0);
   const { stats, updateStats, stackUser } = usePlayerStats();
   const [personalBest, setPersonalBest] = useState(stats.highestScore);
+  const [combo, setCombo] = useState(0);
+  const comboRef = useRef(0);
+  const [multiplier, setMultiplier] = useState(1);
+  const [typedStats, setTypedStats] = useState({ total: 0, correct: 0 });
+  const [explosions, setExplosions] = useState([]);
+  const [errorFlash, setErrorFlash] = useState(false);
+  const errorFlashRef = useRef(null);
+  const [surgeMode, setSurgeMode] = useState(false);
 
   const [bullets, setBullets] = useState([]);
   const [hitEnemies, setHitEnemies] = useState(new Set());
@@ -36,6 +50,18 @@ export default function Game() {
 
   audioInit();
 
+  useEffect(() => {
+    setPersonalBest(stats.highestScore);
+  }, [stats.highestScore]);
+
+  const accuracyPct = useMemo(() => {
+    if (typedStats.total === 0) return 100;
+    return Math.max(
+      0,
+      Math.min(100, Math.round((typedStats.correct / typedStats.total) * 100))
+    );
+  }, [typedStats]);
+
   // refs for spawn control and death detection
   const spawnTimeoutRef = useRef(null);
   const scheduleNextRef = useRef(null);
@@ -49,8 +75,42 @@ export default function Game() {
   const cy = height / 2;
   const spawnRadius = Math.min(width, height) / 2 - 40; // spawn on the circle
   const playerRadius = dims.current.playerRadius;
-  const MAX_ALIVE_ENEMIES = 8;
+  const BASE_MAX_ALIVE = 8;
   const SPAWN_INTERVAL_SCALE = 0.8;
+
+  const registerComboWin = useCallback(() => {
+    setCombo((prevCombo) => {
+      const nextCombo = prevCombo + 1;
+      comboRef.current = nextCombo;
+      const nextMultiplier = 1 + Math.floor(nextCombo / 5);
+      setMultiplier(nextMultiplier);
+      if (nextMultiplier >= 3) {
+        setSurgeMode(true);
+        setTimeout(() => setSurgeMode(false), 1500);
+      }
+      setScore((prevScore) => prevScore + Math.round(100 * nextMultiplier));
+      return nextCombo;
+    });
+  }, []);
+
+  const breakCombo = useCallback(() => {
+    comboRef.current = 0;
+    setCombo(0);
+    setMultiplier(1);
+  }, []);
+
+  const pushExplosion = useCallback((x, y) => {
+    const id = `${x}-${y}-${Date.now()}`;
+    setExplosions((prev) => [...prev, { id, x, y }]);
+    setTimeout(() => {
+      setExplosions((prev) => prev.filter((blast) => blast.id !== id));
+    }, 450);
+  }, []);
+
+  const dynamicMaxEnemies = useCallback(() => {
+    const comboBoost = Math.min(4, Math.floor(comboRef.current / 6));
+    return BASE_MAX_ALIVE + comboBoost;
+  }, []);
 
   // spawn an enemy on the circle perimeter at random angle with dynamic spawn interval
   useEffect(() => {
@@ -160,7 +220,8 @@ export default function Game() {
         const aliveCount = prev.filter((e) => e.alive && !e.reached).length;
         aliveCountForDelay = aliveCount;
 
-        const availableSlots = MAX_ALIVE_ENEMIES - aliveCount;
+        const maxAllowed = dynamicMaxEnemies();
+        const availableSlots = maxAllowed - aliveCount;
         if (availableSlots <= 0) {
           return prev;
         }
@@ -196,7 +257,7 @@ export default function Game() {
       } else if (
         spawnedCount === 0 &&
         typeof aliveCountForDelay === "number" &&
-        aliveCountForDelay >= MAX_ALIVE_ENEMIES
+        aliveCountForDelay >= dynamicMaxEnemies()
       ) {
         delay = Math.max(delay, 300);
       }
@@ -260,6 +321,7 @@ export default function Game() {
 
         // apply heart decrement once per tick if any reached
         if (reachedCount > 0) {
+          breakCombo();
           setHearts((h) => {
             const next = Math.max(0, h - reachedCount);
             if (next <= 0) {
@@ -359,14 +421,13 @@ export default function Game() {
         prev.map((e) => (e.id === target.id ? { ...e, alive: false } : e))
       );
       setInput("");
-      setScore((prev) => {
-        const nextScore = prev + 100;
-        return nextScore;
-      });
+      registerComboWin();
+      pushExplosion(target.x, target.y);
+      setErrorFlash(false);
       // play gunshot sound on success
       playGunshot();
     }
-  }, [input, target]);
+  }, [input, target, registerComboWin, pushExplosion]);
 
   // keyboard input (typing)
   useEffect(() => {
@@ -376,6 +437,13 @@ export default function Game() {
       } else if (/^[a-zA-Z]$/.test(e.key)) {
         const newChar = e.key.toLowerCase();
         const newInput = input + newChar;
+
+        if (target) {
+          setTypedStats((prev) => ({
+            total: prev.total + 1,
+            correct: prev.correct + (target.word.startsWith(newInput) ? 1 : 0),
+          }));
+        }
 
         if (target && target.word.startsWith(newInput)) {
           // Correct letter - shoot bullet
@@ -430,6 +498,10 @@ export default function Game() {
         } else if (target && input.length >= 0) {
           // Wrong letter - trigger error shake
           setErrorEnemies((prev) => new Set(prev).add(target.id));
+          breakCombo();
+          if (errorFlashRef.current) clearTimeout(errorFlashRef.current);
+          setErrorFlash(true);
+          errorFlashRef.current = setTimeout(() => setErrorFlash(false), 250);
 
           // Remove error after shake animation (500ms)
           setTimeout(() => {
@@ -446,8 +518,11 @@ export default function Game() {
     };
 
     window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [input, target, cx, cy]);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      if (errorFlashRef.current) clearTimeout(errorFlashRef.current);
+    };
+  }, [input, target, cx, cy, breakCombo]);
 
   // compute distance to target
   const targetDistance = target
@@ -466,6 +541,11 @@ export default function Game() {
     return "text-white";
   })();
 
+  const aliveEnemyCount = useMemo(
+    () => enemies.filter((enemy) => enemy.alive).length,
+    [enemies]
+  );
+
   useEffect(() => {
     setPersonalBest(stats.highestScore);
   }, [stats.highestScore]);
@@ -478,266 +558,407 @@ export default function Game() {
   }, [score, personalBest, updateStats]);
 
   return (
-    <div className="p-5 font-mono text-slate-900 dark:text-white ">
-      <h2 className="text-2xl font-bold">Type royale 🧟</h2>
-
-      {/* Hearts HUD */}
-      <div className="flex items-center gap-2 mt-2">
-        <div className="font-medium">Hearts:</div>
-        <div className="text-xl">
-          {Array.from({ length: hearts }).map((_, i) => (
-            <span key={i} className="text-red-500 mr-1">
-              ❤️
-            </span>
-          ))}
-          {hearts === 0 && <span className="text-sm text-slate-400"> (0)</span>}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1 mt-2">
-        <div className="flex items-center gap-2">
-          <div className="font-medium">Score:</div>
-          <div className="text-xl font-semibold text-amber-400">{score}</div>
-        </div>
-        <div className="text-xs text-slate-400">
-          Personal Best: {personalBest}
-          {!stackUser && " (sign in to save)"}
-        </div>
-      </div>
-
-      <div
-        className="mt-3 rounded-lg border-2 border-slate-800 relative overflow-hidden mx-auto"
-        style={{
-          width,
-          height,
-          background: "#000000",
-        }}
-      >
-        {/* Target tracking line */}
-        {target && (
-          <svg
-            className="absolute inset-0 pointer-events-none z-10"
-            style={{ width: "100%", height: "100%" }}
-          >
-            <defs>
-              <linearGradient
-                id="target-line-gradient"
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="0%"
-              >
-                <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.3" />
-              </linearGradient>
-            </defs>
-            <line
-              x1={cx}
-              y1={cy}
-              x2={target.x}
-              y2={target.y}
-              stroke="url(#target-line-gradient)"
-              strokeWidth="3"
-              strokeDasharray="8,4"
-              opacity="0.9"
-            />
-            <circle
-              cx={target.x}
-              cy={target.y}
-              r="6"
-              fill="#fbbf24"
-              opacity="0.8"
-            />
-          </svg>
-        )}
-
-        {/* player in center */}
-        <div
-          title="player"
-          className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
-          style={{
-            left: cx,
-            top: cy,
-            width: playerRadius * 2,
-            height: playerRadius * 2,
-            borderRadius: "50%",
-            background: "linear-gradient(180deg,#fff,#ffd36b)",
-            border: "3px solid #333",
-          }}
-        >
-          ⌨️
-        </div>
-
-        {nextWord && (
-          <div
-            className="absolute px-2.5 py-1 rounded-full border border-slate-600/40 bg-slate-900/75 text-[11px] font-semibold tracking-[0.25em] uppercase text-slate-300 shadow-lg shadow-slate-900/40"
-            style={{
-              left: cx,
-              top: cy - playerRadius - 60,
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <span className="text-slate-500 mr-2 tracking-[0.35em]">Next</span>
-            <span className="text-slate-100 tracking-[0.2em]">{nextWord}</span>
+    <div className="relative min-h-screen w-full bg-gradient-to-b from-slate-900 via-slate-950 to-black px-4 py-8 font-mono text-white lg:px-10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-8">
+        <header className="flex flex-wrap items-start justify-between gap-6">
+          <div>
+            <p className="text-xs uppercase tracking-[0.45em] text-slate-500">
+              Solo Arena
+            </p>
+            <h2 className="text-4xl font-black tracking-tight text-white lg:text-5xl">
+              Type Royale 🧟
+            </h2>
+            <p className="mt-2 max-w-xl text-sm text-slate-400">
+              Survive the endless surge. Chain flawless combos to trigger surge
+              mode and keep every heart intact.
+            </p>
           </div>
-        )}
+          <div className="flex flex-wrap gap-4 text-slate-100">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg shadow-black/40">
+              <p className="text-[11px] uppercase tracking-[0.35em] text-slate-400">
+                Score
+              </p>
+              <p className="text-3xl font-black text-amber-300">{score}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg shadow-black/40">
+              <p className="text-[11px] uppercase tracking-[0.35em] text-slate-400">
+                Personal Best
+              </p>
+              <p className="text-2xl font-semibold text-emerald-300">
+                {personalBest}
+              </p>
+              {!stackUser && (
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
+                  Sign in to save
+                </p>
+              )}
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg shadow-black/40">
+              <p className="text-[11px] uppercase tracking-[0.35em] text-slate-400">
+                Vitals
+              </p>
+              <div className="mt-1 flex items-center gap-1 text-2xl">
+                {Array.from({ length: hearts }).map((_, i) => (
+                  <span key={i} className="text-red-400">
+                    ❤️
+                  </span>
+                ))}
+                {hearts === 0 && (
+                  <span className="text-sm text-slate-500">K.O.</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
 
-        <div
-          className="absolute px-3 py-1 rounded-full border border-amber-400/40 bg-slate-900/85 text-sm font-semibold tracking-wide text-amber-200 shadow-lg shadow-amber-400/25 backdrop-blur-sm"
-          style={{
-            left: cx,
-            top: cy - playerRadius - 28,
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          {target ? (
-            <span className="uppercase">
-              <span>{typedPrefix}</span>
-              <span className={inputClass}>{typedSuffix}</span>
-            </span>
-          ) : (
-            <span className="text-slate-300">Waiting...</span>
-          )}
-        </div>
-
-        <div
-          className="absolute px-3 py-1 rounded-full border border-slate-600/40 bg-slate-900/75 text-sm font-mono tracking-widest uppercase shadow-lg shadow-slate-900/40"
-          style={{
-            left: cx,
-            top: cy + playerRadius + 34,
-            transform: "translate(-50%, -50%)",
-            minWidth: 120,
-          }}
-        >
-          <span className={inputClass}>{inputDisplay}</span>
-        </div>
-
-        {/* enemies */}
-        {enemies
-          .filter((e) => {
-            if (e.alive) return true;
-
-            const deadEnemies = enemies.filter((e) => !e.alive);
-            const deadEnemyIndex = deadEnemies.findIndex(
-              (de) => de.id === e.id
-            );
-
-            return deadEnemyIndex >= deadEnemies.length - 12;
-          })
-          .map((e) => {
-            const isTarget = target && target.id === e.id;
-            const isHit = hitEnemies.has(e.id);
-            const hasError = errorEnemies.has(e.id);
-            const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
-            return (
-              <div
-                key={e.id}
-                title={e.word}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
-                  target && target.id === e.id ? "z-10" : ""
-                } ${isHit ? "animate-pulse" : ""} ${
-                  hasError ? "animate-shake" : ""
-                }`}
-                style={{ left: e.x, top: e.y, opacity: e.alive ? 1 : 0.35 }}
-              >
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-800 shadow ${
-                    isHit ? "bg-red-500 scale-110" : bgClass
-                  } ${isTarget ? "ring-1 ring-yellow-400 z-10" : ""}`}
-                  style={{ fontSize: 18, transition: "all 0.15s ease-out" }}
-                >
-                  🧟
+        <section className="relative rounded-[32px] border border-white/10 bg-slate-950/70 shadow-[0_50px_120px_rgba(15,23,42,0.65)]">
+          <div className="pointer-events-none absolute top-6 left-6 z-30 w-[230px] space-y-3">
+            <div
+              className={`rounded-2xl border px-4 py-3 backdrop-blur shadow-lg ${
+                surgeMode
+                  ? "border-amber-300/80 bg-amber-500/15 shadow-amber-400/40"
+                  : "border-white/10 bg-white/5 shadow-black/40"
+              }`}
+            >
+              <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.35em] text-slate-300">
+                Combo
+                {surgeMode && (
+                  <span className="rounded-full bg-amber-400/30 px-2 py-0.5 text-[10px] tracking-normal text-white">
+                    Surge
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <div className="text-4xl font-black text-amber-300">
+                  {combo}
                 </div>
-                <div className="text-center mt-1 text-xs text-white">
-                  {e.alive ? (
-                    isTarget ? (
-                      e.word.startsWith(input) ? (
-                        <span>
-                          <span className="text-green-400 font-bold">
-                            {e.word.slice(0, input.length)}
-                          </span>
-                          <span>{e.word.slice(input.length)}</span>
-                        </span>
-                      ) : (
-                        <span className="text-red-400 font-bold">{e.word}</span>
-                      )
-                    ) : (
-                      e.word
-                    )
-                  ) : (
-                    "DEAD"
-                  )}
+                <div className="text-xs text-slate-300">
+                  Mult <span className="text-amber-200">x{multiplier}</span>
                 </div>
               </div>
-            );
-          })}
+              <div className="mt-2 h-1.5 rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-amber-400 transition-all"
+                  style={{ width: `${Math.min(100, (combo % 5) * 20)}%` }}
+                />
+              </div>
+            </div>
+          </div>
 
-        {/* Render bullets */}
-        {bullets.map((bullet) => {
-          const currentX =
-            bullet.startX + (bullet.endX - bullet.startX) * bullet.progress;
-          const currentY =
-            bullet.startY + (bullet.endY - bullet.startY) * bullet.progress;
+          <div className="pointer-events-none absolute top-6 right-6 z-30 w-[230px] space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur shadow-lg shadow-black/40">
+              <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.35em] text-slate-300">
+                Accuracy
+                <span className="text-[10px] tracking-normal text-slate-400">
+                  {typedStats.total} keys
+                </span>
+              </div>
+              <div className="mt-1 text-4xl font-black text-emerald-300">
+                {accuracyPct}%
+              </div>
+              <p className="text-xs text-slate-400">
+                Keep it above 95% to bend the swarm.
+              </p>
+            </div>
+          </div>
 
-          return (
+          <div className="relative flex justify-center px-6 pb-16 pt-6">
             <div
-              key={bullet.id}
-              className="absolute pointer-events-none"
+              className={`rounded-[28px] border-2 relative overflow-hidden mx-auto transition-all duration-300 ${
+                errorFlash
+                  ? "border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.45)]"
+                  : surgeMode
+                  ? "border-amber-400/70 shadow-[0_0_30px_rgba(251,191,36,0.45)]"
+                  : "border-slate-800/90"
+              }`}
               style={{
-                left: currentX,
-                top: currentY,
-                transform: "translate(-50%, -50%)",
+                width,
+                height,
+                background: "#000000",
               }}
             >
-              <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50" />
+              {errorFlash && (
+                <div className="absolute inset-0 z-[5] pointer-events-none bg-red-500/10" />
+              )}
+              {/* Target tracking line */}
+              {target && (
+                <svg
+                  className="absolute inset-0 pointer-events-none z-10"
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <defs>
+                    <linearGradient
+                      id="target-line-gradient"
+                      x1="0%"
+                      y1="0%"
+                      x2="100%"
+                      y2="0%"
+                    >
+                      <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
+                      <stop
+                        offset="100%"
+                        stopColor="#f59e0b"
+                        stopOpacity="0.3"
+                      />
+                    </linearGradient>
+                  </defs>
+                  <line
+                    x1={cx}
+                    y1={cy}
+                    x2={target.x}
+                    y2={target.y}
+                    stroke="url(#target-line-gradient)"
+                    strokeWidth="3"
+                    strokeDasharray="8,4"
+                    opacity="0.9"
+                  />
+                  <circle
+                    cx={target.x}
+                    cy={target.y}
+                    r="6"
+                    fill="#fbbf24"
+                    opacity="0.8"
+                  />
+                </svg>
+              )}
+
+              {/* player in center */}
+              <div
+                title="player"
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center text-lg"
+                style={{
+                  left: cx,
+                  top: cy,
+                  width: playerRadius * 2,
+                  height: playerRadius * 2,
+                  borderRadius: "50%",
+                  background: "linear-gradient(180deg,#fff,#ffd36b)",
+                  border: "3px solid #333",
+                }}
+              >
+                ⌨️
+              </div>
+
+              {nextWord && (
+                <div
+                  className="absolute px-2.5 py-1 rounded-full border border-slate-600/40 bg-slate-900/75 text-[11px] font-semibold tracking-[0.25em] uppercase text-slate-300 shadow-lg shadow-slate-900/40"
+                  style={{
+                    left: cx,
+                    top: cy - playerRadius - 60,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                >
+                  <span className="text-slate-500 mr-2 tracking-[0.35em]">
+                    Next
+                  </span>
+                  <span className="text-slate-100 tracking-[0.2em]">
+                    {nextWord}
+                  </span>
+                </div>
+              )}
+
+              <div
+                className="absolute px-3 py-1 rounded-full border border-amber-400/40 bg-slate-900/85 text-sm font-semibold tracking-wide text-amber-200 shadow-lg shadow-amber-400/25 backdrop-blur-sm"
+                style={{
+                  left: cx,
+                  top: cy - playerRadius - 28,
+                  transform: "translate(-50%, -50%)",
+                }}
+              >
+                {target ? (
+                  <span className="uppercase">
+                    <span>{typedPrefix}</span>
+                    <span className={inputClass}>{typedSuffix}</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-300">Waiting...</span>
+                )}
+              </div>
+
+              <div
+                className="absolute px-3 py-1 rounded-full border border-slate-600/40 bg-slate-900/75 text-sm font-mono tracking-widest uppercase shadow-lg shadow-slate-900/40"
+                style={{
+                  left: cx,
+                  top: cy + playerRadius + 34,
+                  transform: "translate(-50%, -50%)",
+                  minWidth: 120,
+                }}
+              >
+                <span className={inputClass}>{inputDisplay}</span>
+              </div>
+
+              {/* enemies */}
+              {enemies
+                .filter((e) => {
+                  if (e.alive) return true;
+
+                  const deadEnemies = enemies.filter((e) => !e.alive);
+                  const deadEnemyIndex = deadEnemies.findIndex(
+                    (de) => de.id === e.id
+                  );
+
+                  return deadEnemyIndex >= deadEnemies.length - 12;
+                })
+                .map((e) => {
+                  const isTarget = target && target.id === e.id;
+                  const isHit = hitEnemies.has(e.id);
+                  const hasError = errorEnemies.has(e.id);
+                  const bgClass = e.alive ? "bg-emerald-400" : "bg-slate-600";
+                  return (
+                    <div
+                      key={e.id}
+                      title={e.word}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-opacity ${
+                        target && target.id === e.id ? "z-10" : ""
+                      } ${isHit ? "animate-pulse" : ""} ${
+                        hasError ? "animate-shake" : ""
+                      }`}
+                      style={{
+                        left: e.x,
+                        top: e.y,
+                        opacity: e.alive ? 1 : 0.35,
+                      }}
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-slate-800 shadow ${
+                          isHit ? "bg-red-500 scale-110" : bgClass
+                        } ${isTarget ? "ring-1 ring-yellow-400 z-10" : ""}`}
+                        style={{
+                          fontSize: 18,
+                          transition: "all 0.15s ease-out",
+                        }}
+                      >
+                        🧟
+                      </div>
+                      <div className="text-center mt-1 text-xs text-white">
+                        {e.alive ? (
+                          isTarget ? (
+                            e.word.startsWith(input) ? (
+                              <span>
+                                <span className="text-green-400 font-bold">
+                                  {e.word.slice(0, input.length)}
+                                </span>
+                                <span>{e.word.slice(input.length)}</span>
+                              </span>
+                            ) : (
+                              <span className="text-red-400 font-bold">
+                                {e.word}
+                              </span>
+                            )
+                          ) : (
+                            e.word
+                          )
+                        ) : (
+                          "DEAD"
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {explosions.map((blast) => (
+                <div
+                  key={blast.id}
+                  className="absolute pointer-events-none z-20"
+                  style={{
+                    left: blast.x,
+                    top: blast.y,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                >
+                  <div className="w-16 h-16 rounded-full bg-amber-400/20 border border-amber-200/60 animate-ping" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-4 h-4 rounded-full bg-white/90 shadow shadow-yellow-200/70" />
+                  </div>
+                </div>
+              ))}
+
+              {/* Render bullets */}
+              {bullets.map((bullet) => {
+                const currentX =
+                  bullet.startX +
+                  (bullet.endX - bullet.startX) * bullet.progress;
+                const currentY =
+                  bullet.startY +
+                  (bullet.endY - bullet.startY) * bullet.progress;
+
+                return (
+                  <div
+                    key={bullet.id}
+                    className="absolute pointer-events-none"
+                    style={{
+                      left: currentX,
+                      top: currentY,
+                      transform: "translate(-50%, -50%)",
+                    }}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-lg shadow-yellow-400/50" />
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-      </div>
-
-      {/* tracker box outside the game area */}
-      <div className="mt-3 p-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-md flex items-center gap-3 border border-slate-300 dark:border-slate-700">
-        <div className="min-w-[120px]">
-          <div className="text-xs text-slate-500 dark:text-slate-300">
-            Closest
           </div>
-          <div className="font-semibold text-sm">
-            {target ? target.word : "None"}
+          <div className="px-6 pb-6">
+            <div className="grid gap-4 text-sm md:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">
+                  Closest Target
+                </p>
+                <p className="text-xl font-semibold text-white">
+                  {target ? target.word : "Waiting"}
+                </p>
+                <p className="text-xs text-slate-400">
+                  Next up: {nextWord || "—"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">
+                  Game Clock
+                </p>
+                <p className="text-xl font-semibold text-white">{elapsed}s</p>
+                <p className="text-xs text-slate-400">
+                  Distance:{" "}
+                  {targetDistance ? `${Math.round(targetDistance)}px` : "—"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
+                <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">
+                  Swarm Status
+                </p>
+                <p className="text-xl font-semibold text-white">
+                  {aliveEnemyCount} alive
+                </p>
+                <p className="text-xs text-slate-400">
+                  Input: {input ? input : "Start typing"}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-sm">
-            {targetDistance ? `${Math.round(targetDistance)}px` : "—"}
-          </div>
-          <div className="text-xs text-slate-400">Time: {elapsed}s</div>
-        </div>
-        <div className="ml-auto text-sm text-slate-600 dark:text-slate-300">
-          Enemies: {enemies.filter((e) => e.alive).length}
-        </div>
+        </section>
       </div>
-
-      <div className="flex gap-3 items-center mt-3">
-        <div>Target: {target?.word || "none"}</div>
-        <div>Input: {input}</div>
-        <div className="ml-auto">
-          Enemies: {enemies.filter((e) => e.alive).length}
-        </div>
-      </div>
-      {/* Game over overlay */}
       {gameOver && (
-        <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg text-center">
-            <h3 className="text-2xl font-bold mb-2 dark:text-black">
-              Game Over
-            </h3>
-            <div className="mb-4 dark:text-black">You ran out of hearts.</div>
-            <div className="mb-4 dark:text-black">Final Score: {score}</div>
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 px-6">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-slate-900/95 p-6 text-center shadow-2xl shadow-black/60">
+            <h3 className="text-2xl font-black text-white">Game Over</h3>
+            <p className="mt-2 text-sm text-slate-400">
+              You ran out of hearts.
+            </p>
+            <p className="mt-1 text-lg font-semibold text-amber-300">
+              Final Score: {score}
+            </p>
             <button
               onClick={() => {
                 // minimal reset
                 setEnemies([]);
                 setHearts(3);
                 setScore(0);
+                setCombo(0);
+                comboRef.current = 0;
+                setMultiplier(1);
+                setTypedStats({ total: 0, correct: 0 });
+                setExplosions([]);
+                setSurgeMode(false);
+                setErrorFlash(false);
                 setGameOver(false);
                 nextId.current = 0;
                 startTime.current = Date.now();
@@ -746,9 +967,9 @@ export default function Game() {
                 // ensure movement is running after restart
                 if (typeof startMovement === "function") startMovement();
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded"
+              className="mt-5 w-full rounded-xl bg-amber-400/90 px-4 py-2 text-sm font-semibold uppercase tracking-[0.35em] text-slate-900 shadow-lg shadow-amber-400/40"
             >
-              Restart
+              Restart Run
             </button>
           </div>
         </div>
