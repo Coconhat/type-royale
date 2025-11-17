@@ -2,9 +2,15 @@ import { useCallback, useMemo } from "react";
 import { useUser } from "@stackframe/react";
 
 const METADATA_KEY = "typeRoyaleStats";
+const PROFILE_VIEWS = new Set(["card", "list"]);
 const DEFAULT_STATS = {
   highestScore: 0,
   totalWins: 0,
+  timeAttackBest: 0,
+  timeAttackRuns: 0,
+  preferences: {
+    profileView: "card",
+  },
 };
 
 const isRecord = (value) =>
@@ -13,7 +19,21 @@ const isRecord = (value) =>
 const normalizeStats = (raw) => ({
   highestScore: Math.max(0, Number(raw?.highestScore) || 0),
   totalWins: Math.max(0, Number(raw?.totalWins) || 0),
+  timeAttackBest: Math.max(0, Number(raw?.timeAttackBest) || 0),
+  timeAttackRuns: Math.max(0, Number(raw?.timeAttackRuns) || 0),
+  preferences: {
+    profileView: PROFILE_VIEWS.has(raw?.preferences?.profileView)
+      ? raw.preferences.profileView
+      : DEFAULT_STATS.preferences.profileView,
+  },
 });
+
+const areStatsEqual = (next, prev) =>
+  next.highestScore === prev.highestScore &&
+  next.totalWins === prev.totalWins &&
+  next.timeAttackBest === prev.timeAttackBest &&
+  next.timeAttackRuns === prev.timeAttackRuns &&
+  next.preferences.profileView === prev.preferences.profileView;
 
 const readStats = (metadata) => {
   if (!isRecord(metadata)) {
@@ -51,12 +71,16 @@ export default function usePlayerStats() {
         typeof partialOrUpdater === "function"
           ? partialOrUpdater(currentStats) || {}
           : partialOrUpdater;
-      const nextStats = normalizeStats({ ...currentStats, ...patch });
+      const nextStats = normalizeStats({
+        ...currentStats,
+        ...patch,
+        preferences: {
+          ...currentStats.preferences,
+          ...(patch?.preferences || {}),
+        },
+      });
 
-      if (
-        nextStats.highestScore === currentStats.highestScore &&
-        nextStats.totalWins === currentStats.totalWins
-      ) {
+      if (areStatsEqual(nextStats, currentStats)) {
         return { ok: true, stats: currentStats, unchanged: true };
       }
 

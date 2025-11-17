@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import Game from "../components/Game";
 import useSocket from "../hooks/useSocket";
 import MultiplayerClient from "../components/MultiplayerClient";
 import GithubButton from "../components/github-button";
 import AuthHeader from "../components/auth-header";
 import { useNavigation } from "./navigation-context";
+import usePlayerStats from "../hooks/usePlayerStats";
 
 export default function StartPage() {
   const [start, setStart] = useState(false);
@@ -12,9 +13,16 @@ export default function StartPage() {
   const [findSeconds, setFindSeconds] = useState(0);
   const [autoCountdown, setAutoCountdown] = useState(null);
   const bgmRef = useRef(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileView, setProfileView] = useState("card");
 
   const socketHook = useSocket("https://type-royale-backend.onrender.com/");
   const navigate = useNavigation();
+  const {
+    stats,
+    stackUser: statsUser,
+    updateStats: persistPlayerStats,
+  } = usePlayerStats();
   const {
     connected,
     match,
@@ -24,6 +32,40 @@ export default function StartPage() {
     onlinePlayers,
     playerId,
   } = socketHook;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("typeRoyaleProfileView");
+    if (stored === "card" || stored === "list") {
+      setProfileView(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!statsUser) return;
+    setProfileView(stats.preferences.profileView);
+  }, [stats.preferences.profileView, statsUser]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("typeRoyaleProfileView", profileView);
+  }, [profileView]);
+
+  const handleProfileViewChange = useCallback(
+    (nextView) => {
+      if (profileView === nextView) return;
+      setProfileView(nextView);
+      if (statsUser) {
+        persistPlayerStats((current) => ({
+          preferences: {
+            ...current.preferences,
+            profileView: nextView,
+          },
+        }));
+      }
+    },
+    [persistPlayerStats, statsUser, profileView]
+  );
 
   useEffect(() => {
     if (!bgmRef.current) {
@@ -135,6 +177,12 @@ export default function StartPage() {
             <AuthHeader />
           </div>
         </div>
+
+        <ProfileSummaryCard
+          stats={stats}
+          signedIn={Boolean(statsUser)}
+          onOpenProfile={() => setProfileOpen(true)}
+        />
 
         <div className="space-y-6">
           {!finding && !match && (
@@ -257,6 +305,16 @@ export default function StartPage() {
           token="your-github-token"
         />
       </div>
+
+      {profileOpen && (
+        <ProfileModal
+          stats={stats}
+          profileView={profileView}
+          onProfileViewChange={handleProfileViewChange}
+          onClose={() => setProfileOpen(false)}
+          signedIn={Boolean(statsUser)}
+        />
+      )}
     </div>
   );
 }
@@ -371,6 +429,200 @@ function ModeStatus({ badge, title, subtitle, accent, children, footer }) {
 
         {footer && <div className="pt-2">{footer}</div>}
       </div>
+    </div>
+  );
+}
+
+function ProfileSummaryCard({ stats, signedIn, onOpenProfile }) {
+  const summary = [
+    {
+      label: "Classic High Score",
+      value: stats.highestScore,
+      helper: "Solo mode best",
+    },
+    {
+      label: "Multiplayer Wins",
+      value: stats.totalWins,
+      helper: "Victories logged",
+    },
+    {
+      label: "Time Attack Best",
+      value: stats.timeAttackBest,
+      helper: "Phrases in 20s",
+    },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#121223] p-6 text-white shadow-xl shadow-black/30">
+      <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+        <div className="space-y-4 flex-1">
+          <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
+            Your Progress
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {summary.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-2xl border border-white/5 bg-white/5 p-4 shadow-inner shadow-black/40"
+              >
+                <div className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                  {item.label}
+                </div>
+                <div className="text-3xl font-bold text-white mt-1">
+                  {item.value}
+                </div>
+                <div className="text-xs text-slate-400 mt-1">
+                  {item.helper}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-3">
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="rounded-full bg-white/10 px-6 py-2 text-sm font-semibold tracking-wide text-white shadow-lg shadow-black/30 transition hover:bg-white/20"
+          >
+            View Profile
+          </button>
+          <div className="text-xs text-slate-400">
+            {signedIn
+              ? "Synced to your Stack Auth profile"
+              : "Local progress until you sign in"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileModal({
+  stats,
+  profileView,
+  onProfileViewChange,
+  onClose,
+  signedIn,
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4">
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full max-w-2xl rounded-3xl border border-white/10 bg-[#07070f] p-8 text-white shadow-2xl">
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <h3 className="text-2xl font-bold">Player Profile</h3>
+            <p className="text-sm text-slate-400">
+              {signedIn
+                ? "Progress is safely stored in your account"
+                : "Currently tracking progress on this device"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-white/10 px-3 py-1 text-sm text-slate-200 hover:bg-white/20"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-6">
+          <ProfileStatsContent stats={stats} profileView={profileView} />
+        </div>
+
+        <div className="mt-6">
+          <div className="text-sm font-semibold text-slate-200">
+            Profile layout
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {["card", "list"].map((mode) => {
+              const active = profileView === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onProfileViewChange(mode)}
+                  className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                    active
+                      ? "bg-white text-slate-900"
+                      : "bg-white/10 text-slate-200 hover:bg-white/20"
+                  }`}
+                >
+                  {mode === "card" ? "Card view" : "List view"}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-2 text-xs text-slate-500">
+            {signedIn
+              ? "Preference synced to your account"
+              : "Preference stored on this browser"}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileStatsContent({ stats, profileView }) {
+  const rows = [
+    {
+      label: "Classic High Score",
+      value: stats.highestScore,
+      detail: "Best solo score",
+    },
+    {
+      label: "Multiplayer Wins",
+      value: stats.totalWins,
+      detail: "Ranked victories",
+    },
+    {
+      label: "Time Attack Best",
+      value: stats.timeAttackBest,
+      detail: "Phrases cleared in 20 seconds",
+    },
+    {
+      label: "Time Attack Runs",
+      value: stats.timeAttackRuns,
+      detail: "Tracked attempts",
+    },
+  ];
+
+  if (profileView === "list") {
+    return (
+      <div className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between px-6 py-4">
+            <div>
+              <div className="text-sm font-semibold">{row.label}</div>
+              <div className="text-xs text-slate-400">{row.detail}</div>
+            </div>
+            <div className="text-2xl font-bold text-white">{row.value}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {rows.map((row) => (
+        <div
+          key={row.label}
+          className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/10 p-5 shadow-inner shadow-black/30"
+        >
+          <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
+            {row.label}
+          </div>
+          <div className="text-4xl font-black text-white mt-2">
+            {row.value}
+          </div>
+          <div className="text-xs text-slate-400 mt-2">{row.detail}</div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { allWords } from "../libs/words";
+import usePlayerStats from "../hooks/usePlayerStats";
 
 export default function TimeAttack() {
   const words = useMemo(() => allWords, []);
   const TOTAL_TIME_MS = 20000;
+  const { stats, updateStats, stackUser } = usePlayerStats();
+  const runIdRef = useRef(0);
+  const recordedRunIdRef = useRef(null);
+
+  const beginNewRun = useCallback(() => {
+    runIdRef.current += 1;
+    recordedRunIdRef.current = null;
+  }, []);
 
   const getRandomPhrase = useCallback(() => {
     const wordsPerPhrase = 10;
@@ -29,7 +38,12 @@ export default function TimeAttack() {
 
   const inputRef = useRef(null);
 
+  useEffect(() => {
+    beginNewRun();
+  }, [beginNewRun]);
+
   const handleRestart = useCallback(() => {
+    beginNewRun();
     setPhrase(getRandomPhrase());
     setInputValue("");
     setRemainingMs(TOTAL_TIME_MS);
@@ -39,7 +53,7 @@ export default function TimeAttack() {
     if (inputRef.current) {
       inputRef.current.focus({ preventScroll: true });
     }
-  }, [getRandomPhrase]);
+  }, [beginNewRun, getRandomPhrase]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -128,6 +142,17 @@ export default function TimeAttack() {
   const mistakes = characters.filter((c) => c.status === "incorrect").length;
   const secondsLeft = Math.ceil(remainingMs / 1000);
 
+  useEffect(() => {
+    if (!timeUp) return;
+    if (recordedRunIdRef.current === runIdRef.current) return;
+    recordedRunIdRef.current = runIdRef.current;
+    if (completed === 0) return;
+    updateStats((current) => ({
+      timeAttackBest: Math.max(current.timeAttackBest, completed),
+      timeAttackRuns: current.timeAttackRuns + 1,
+    }));
+  }, [timeUp, completed, updateStats]);
+
   return (
     <div
       className="min-h-screen bg-[#1c1c1c] flex items-center justify-center p-6"
@@ -181,6 +206,33 @@ export default function TimeAttack() {
           <div className="text-center">
             <div className="text-3xl font-bold text-amber-300">{mistakes}</div>
             <div className="text-sm mt-1">Active mistakes</div>
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3 text-center text-slate-300">
+          <div className="rounded-xl border border-white/10 bg-white/5 py-3">
+            <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
+              Best Run
+            </div>
+            <div className="text-2xl font-bold text-white">
+              {stats.timeAttackBest}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 py-3">
+            <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
+              Logged Runs
+            </div>
+            <div className="text-2xl font-bold text-white">
+              {stats.timeAttackRuns}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/5 py-3 px-4">
+            <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
+              Sync Status
+            </div>
+            <div className="text-sm text-slate-100">
+              {stackUser ? "Linked to your profile" : "Sign in to save"}
+            </div>
           </div>
         </div>
 
