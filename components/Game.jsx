@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { allWords } from "../libs/words";
 import audioInit from "../libs/audio-init";
 import { playGunshot } from "../libs/gunshot";
+import usePlayerStats from "../hooks/usePlayerStats";
 
 export default function Game() {
   const [enemies, setEnemies] = useState([]);
@@ -11,6 +12,8 @@ export default function Game() {
   const [nextTarget, setNextTarget] = useState(null);
   const nextId = useRef(0);
   const [score, setScore] = useState(0);
+  const { stats, updateStats, stackUser } = usePlayerStats();
+  const [personalBest, setPersonalBest] = useState(stats.highestScore);
 
   const [bullets, setBullets] = useState([]);
   const [hitEnemies, setHitEnemies] = useState(new Set());
@@ -462,6 +465,17 @@ export default function Game() {
     return "text-white";
     })();
 
+  useEffect(() => {
+    setPersonalBest(stats.highestScore);
+  }, [stats.highestScore]);
+
+  useEffect(() => {
+    if (score === 0) return;
+    if (score <= personalBest) return;
+    setPersonalBest(score);
+    updateStats({ highestScore: score });
+  }, [score, personalBest, updateStats]);
+
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
       <h2 className="text-2xl font-bold">Type royale 🧟</h2>
@@ -479,9 +493,15 @@ export default function Game() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 mt-2">
-        <div className="font-medium">Score:</div>
-        <div className="text-xl font-semibold text-amber-400">{score}</div>
+      <div className="flex flex-col gap-1 mt-2">
+        <div className="flex items-center gap-2">
+          <div className="font-medium">Score:</div>
+          <div className="text-xl font-semibold text-amber-400">{score}</div>
+        </div>
+        <div className="text-xs text-slate-400">
+          Personal Best: {personalBest}
+          {!stackUser && " (sign in to save)"}
+        </div>
       </div>
 
       <div

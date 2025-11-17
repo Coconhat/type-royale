@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { playGunshot } from "../libs/gunshot";
 import useInterpolation from "../hooks/useInterpolation";
 import audioInit from "../libs/audio-init";
+import usePlayerStats from "../hooks/usePlayerStats";
 
 export default function Multiplayer({ socketData, onGameOver } = {}) {
   const [input, setInput] = useState("");
@@ -32,6 +33,8 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
   );
 
   const [gameOver, setGameOver] = useState(false);
+  const { stats, updateStats, stackUser } = usePlayerStats();
+  const recordedWinRef = useRef(null);
 
   // game dimensions (px)
   const width = 600;
@@ -307,6 +310,14 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
   const isWinner =
     connected && match?.ended && match.winnerId === match.playerId;
 
+  useEffect(() => {
+    if (!isWinner || !match?.roomId || recordedWinRef.current === match.roomId) {
+      return;
+    }
+    recordedWinRef.current = match.roomId;
+    updateStats((current) => ({ totalWins: current.totalWins + 1 }));
+  }, [isWinner, match?.roomId, updateStats]);
+
   return (
     <div className="p-5 font-mono text-slate-900 dark:text-white ">
       <div className="text-center mx-auto">
@@ -325,6 +336,10 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
               <span className="text-sm text-slate-400"> (0)</span>
             )}
           </div>
+        </div>
+        <div className="text-xs text-slate-400 mt-1">
+          Lifetime Wins: {stats.totalWins}
+          {!stackUser && " (sign in to sync)"}
         </div>
       </div>
 

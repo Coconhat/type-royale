@@ -1,5 +1,6 @@
 ﻿import { useState } from "react";
-import { useStackApp, useUser } from "@stackframe/react";
+import { useStackApp } from "@stackframe/react";
+import usePlayerStats from "../hooks/usePlayerStats";
 
 function getErrorMessage(error, fallback) {
   if (!error) return fallback;
@@ -14,7 +15,7 @@ function getErrorMessage(error, fallback) {
 export default function AuthHeader() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignUp, setShowSignUp] = useState(false);
-  const stackUser = useUser();
+  const { stackUser, stats } = usePlayerStats();
 
   return (
     <>
@@ -22,10 +23,16 @@ export default function AuthHeader() {
         {stackUser ? (
           // Show user email and logout when logged in
           <>
-            <span className="text-white font-medium">
-              Welcome,{" "}
-              {stackUser.displayName || stackUser.primaryEmail || "player"}
-            </span>
+            <div className="text-right">
+              <div className="text-white font-medium">
+                Welcome,{" "}
+                {stackUser.displayName || stackUser.primaryEmail || "player"}
+              </div>
+              <div className="text-sm text-indigo-100/80">
+                🏆 Best {stats.highestScore}
+                <span className="mx-1">·</span>⚔️ Wins {stats.totalWins}
+              </div>
+            </div>
             <LogoutButton />
           </>
         ) : (
