@@ -461,9 +461,10 @@ export default function Game() {
 
   const inputClass = (() => {
     if (!input) return "text-slate-400";
-    if (target && !target.word.startsWith(input)) return "text-red-400 font-bold";
+    if (target && !target.word.startsWith(input))
+      return "text-red-400 font-bold";
     return "text-white";
-    })();
+  })();
 
   useEffect(() => {
     setPersonalBest(stats.highestScore);
@@ -591,7 +592,7 @@ export default function Game() {
         >
           {target ? (
             <span className="uppercase">
-              <span >{typedPrefix}</span>
+              <span>{typedPrefix}</span>
               <span className={inputClass}>{typedSuffix}</span>
             </span>
           ) : (
@@ -608,11 +609,7 @@ export default function Game() {
             minWidth: 120,
           }}
         >
-          <span
-            className={inputClass}
-          >
-            {inputDisplay}
-          </span>
+          <span className={inputClass}>{inputDisplay}</span>
         </div>
 
         {/* enemies */}
@@ -730,7 +727,9 @@ export default function Game() {
       {gameOver && (
         <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg text-center">
-            <h3 className="text-2xl font-bold mb-2 dark:text-black">Game Over</h3>
+            <h3 className="text-2xl font-bold mb-2 dark:text-black">
+              Game Over
+            </h3>
             <div className="mb-4 dark:text-black">You ran out of hearts.</div>
             <div className="mb-4 dark:text-black">Final Score: {score}</div>
             <button

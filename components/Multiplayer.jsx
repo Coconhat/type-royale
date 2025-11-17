@@ -311,7 +311,11 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
     connected && match?.ended && match.winnerId === match.playerId;
 
   useEffect(() => {
-    if (!isWinner || !match?.roomId || recordedWinRef.current === match.roomId) {
+    if (
+      !isWinner ||
+      !match?.roomId ||
+      recordedWinRef.current === match.roomId
+    ) {
       return;
     }
     recordedWinRef.current = match.roomId;
