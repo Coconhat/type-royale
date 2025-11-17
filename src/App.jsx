@@ -471,9 +471,7 @@ function ProfileSummaryCard({ stats, signedIn, onOpenProfile }) {
                 <div className="text-3xl font-bold text-white mt-1">
                   {item.value}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">
-                  {item.helper}
-                </div>
+                <div className="text-xs text-slate-400 mt-1">{item.helper}</div>
               </div>
             ))}
           </div>
@@ -595,7 +593,10 @@ function ProfileStatsContent({ stats, profileView }) {
     return (
       <div className="divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-center justify-between px-6 py-4">
+          <div
+            key={row.label}
+            className="flex items-center justify-between px-6 py-4"
+          >
             <div>
               <div className="text-sm font-semibold">{row.label}</div>
               <div className="text-xs text-slate-400">{row.detail}</div>
@@ -617,9 +618,7 @@ function ProfileStatsContent({ stats, profileView }) {
           <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
             {row.label}
           </div>
-          <div className="text-4xl font-black text-white mt-2">
-            {row.value}
-          </div>
+          <div className="text-4xl font-black text-white mt-2">{row.value}</div>
           <div className="text-xs text-slate-400 mt-2">{row.detail}</div>
         </div>
       ))}
