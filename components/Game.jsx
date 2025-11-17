@@ -292,8 +292,8 @@ export default function Game() {
     const move = setInterval(() => {
       const now = Date.now();
       const elapsedSec = Math.floor((now - startTime.current) / 1000);
-      // keep enemy speed constant (no global acceleration)
-      const multiplier = 1;
+      // ramp global speed so late-game zombies sprint harder
+      const timeSpeedMultiplier = 1 + Math.min(2.4, elapsedSec * 0.01);
 
       // update elapsed UI state occasionally
       setElapsed(elapsedSec);
@@ -306,8 +306,8 @@ export default function Game() {
         const updated = prev
           .map((e) => {
             if (!e.alive || e.reached) return e;
-            const nx = e.x + e.ux * e.baseSpeed * multiplier;
-            const ny = e.y + e.uy * e.baseSpeed * multiplier;
+            const nx = e.x + e.ux * e.baseSpeed * timeSpeedMultiplier;
+            const ny = e.y + e.uy * e.baseSpeed * timeSpeedMultiplier;
             const d = Math.hypot(nx - cx, ny - cy);
             if (d <= playerRadius) {
               // mark this enemy as dead/reached so it won't trigger again

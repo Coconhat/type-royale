@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { playGunshot } from "../libs/gunshot";
 import useInterpolation from "../hooks/useInterpolation";
@@ -377,13 +383,17 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
               <p className="text-[11px] uppercase tracking-[0.35em] text-slate-400">
                 Status
               </p>
-              <p className="text-xl font-semibold text-amber-300">{matchStatus}</p>
+              <p className="text-xl font-semibold text-amber-300">
+                {matchStatus}
+              </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg shadow-black/40">
               <p className="text-[11px] uppercase tracking-[0.35em] text-slate-400">
                 Lifetime Wins
               </p>
-              <p className="text-2xl font-black text-emerald-300">{stats.totalWins}</p>
+              <p className="text-2xl font-black text-emerald-300">
+                {stats.totalWins}
+              </p>
               {!stackUser && (
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">
                   Sign in to sync
@@ -410,7 +420,9 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                   <span className="text-xs text-slate-400">K.O.</span>
                 )}
               </div>
-              <div className="text-xs text-slate-300">Accuracy {accuracyPct}%</div>
+              <div className="text-xs text-slate-300">
+                Accuracy {accuracyPct}%
+              </div>
             </div>
           </div>
 
@@ -458,8 +470,16 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                         x2="100%"
                         y2="0%"
                       >
-                        <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.8" />
-                        <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.3" />
+                        <stop
+                          offset="0%"
+                          stopColor="#fbbf24"
+                          stopOpacity="0.8"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#f59e0b"
+                          stopOpacity="0.3"
+                        />
                       </linearGradient>
                     </defs>
                     <line
@@ -543,7 +563,11 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                     minWidth: 120,
                   }}
                 >
-                  <span className={input.length ? "text-emerald-300" : "text-slate-400"}>
+                  <span
+                    className={
+                      input.length ? "text-emerald-300" : "text-slate-400"
+                    }
+                  >
                     {inputDisplay}
                   </span>
                 </div>
@@ -611,9 +635,11 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
 
                 {bullets.map((bullet) => {
                   const currentX =
-                    bullet.startX + (bullet.endX - bullet.startX) * bullet.progress;
+                    bullet.startX +
+                    (bullet.endX - bullet.startX) * bullet.progress;
                   const currentY =
-                    bullet.startY + (bullet.endY - bullet.startY) * bullet.progress;
+                    bullet.startY +
+                    (bullet.endY - bullet.startY) * bullet.progress;
 
                   return (
                     <div
@@ -705,9 +731,11 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
 
                 {spectatorBullets.map((bullet) => {
                   const currentX =
-                    bullet.startX + (bullet.endX - bullet.startX) * bullet.progress;
+                    bullet.startX +
+                    (bullet.endX - bullet.startX) * bullet.progress;
                   const currentY =
-                    bullet.startY + (bullet.endY - bullet.startY) * bullet.progress;
+                    bullet.startY +
+                    (bullet.endY - bullet.startY) * bullet.progress;
 
                   return (
                     <div
@@ -736,7 +764,9 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                 <p className="text-xl font-semibold text-white">
                   {target ? target.word : "Waiting"}
                 </p>
-                <p className="text-xs text-slate-400">Next: {nextWord || "—"}</p>
+                <p className="text-xs text-slate-400">
+                  Next: {nextWord || "—"}
+                </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
                 <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">
@@ -745,14 +775,20 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                 <p className="text-xl font-semibold text-white">
                   {targetDistance ? `${Math.round(targetDistance)}px` : "—"}
                 </p>
-                <p className="text-xs text-slate-400">Match clock synced server-side</p>
+                <p className="text-xs text-slate-400">
+                  Match clock synced server-side
+                </p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur">
                 <p className="text-[10px] uppercase tracking-[0.35em] text-slate-400">
                   Swarm Count
                 </p>
-                <p className="text-xl font-semibold text-white">{alivePlayerEnemies} alive</p>
-                <p className="text-xs text-slate-400">Input: {input || "Start typing"}</p>
+                <p className="text-xl font-semibold text-white">
+                  {alivePlayerEnemies} alive
+                </p>
+                <p className="text-xs text-slate-400">
+                  Input: {input || "Start typing"}
+                </p>
               </div>
             </div>
           </div>
@@ -772,7 +808,9 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
                   {isWinner ? "Victory" : "Defeat"}
                 </h3>
                 <p className="mt-2 text-sm text-slate-400">
-                  {isWinner ? "You outlasted the swarm." : "Opponent held the line."}
+                  {isWinner
+                    ? "You outlasted the swarm."
+                    : "Opponent held the line."}
                 </p>
                 <p className="mt-4 text-lg font-semibold text-amber-300">
                   Final tally: {displayKills} kills • {displayHearts} hearts
@@ -781,7 +819,9 @@ export default function Multiplayer({ socketData, onGameOver } = {}) {
             ) : (
               <>
                 <h3 className="text-2xl font-black text-white">Game Over</h3>
-                <p className="mt-2 text-sm text-slate-400">You ran out of hearts.</p>
+                <p className="mt-2 text-sm text-slate-400">
+                  You ran out of hearts.
+                </p>
               </>
             )}
             <button
