@@ -158,7 +158,7 @@ export default function StartPage() {
     );
 
   return (
-    <div className="min-h-screen bg-[#060612] text-white">
+    <div className="h-screen overflow-hidden bg-[#060612] text-white">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-12 space-y-12">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="space-y-4">
@@ -433,63 +433,27 @@ function ModeStatus({ badge, title, subtitle, accent, children, footer }) {
   );
 }
 
-function ProfileSummaryCard({ stats, signedIn, onOpenProfile }) {
-  const summary = [
-    {
-      label: "Classic High Score",
-      value: stats.highestScore,
-      helper: "Solo mode best",
-    },
-    {
-      label: "Multiplayer Wins",
-      value: stats.totalWins,
-      helper: "Victories logged",
-    },
-    {
-      label: "Time Attack Best",
-      value: stats.timeAttackBest,
-      helper: "Phrases in 20s",
-    },
-  ];
-
+function ProfileSummaryCard({ signedIn, onOpenProfile }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#121223] p-6 text-white shadow-xl shadow-black/30">
-      <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-4 flex-1">
-          <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
-            Your Progress
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {summary.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-2xl border border-white/5 bg-white/5 p-4 shadow-inner shadow-black/40"
-              >
-                <div className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                  {item.label}
-                </div>
-                <div className="text-3xl font-bold text-white mt-1">
-                  {item.value}
-                </div>
-                <div className="text-xs text-slate-400 mt-1">{item.helper}</div>
-              </div>
-            ))}
-          </div>
+    <div className="flex flex-col gap-4">
+      <div className="space-y-2">
+        <div className="text-xs uppercase tracking-[0.35em] text-slate-400">
+          Your Progress
         </div>
-        <div className="flex flex-col items-end gap-3">
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="rounded-full bg-white/10 px-6 py-2 text-sm font-semibold tracking-wide text-white shadow-lg shadow-black/30 transition hover:bg-white/20"
-          >
-            View Profile
-          </button>
-          <div className="text-xs text-slate-400">
-            {signedIn
-              ? "Synced to your Stack Auth profile"
-              : "Local progress until you sign in"}
-          </div>
-        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onOpenProfile}
+        className="self-start rounded-full bg-white/10 px-6 py-2 text-sm font-semibold tracking-wide text-white shadow-lg shadow-black/30 transition hover:bg-white/20"
+      >
+        View Profile
+      </button>
+
+      <div className="text-xs text-slate-400">
+        {signedIn
+          ? "Synced to your Stack Auth profile"
+          : "Local progress until you sign in"}
       </div>
     </div>
   );
