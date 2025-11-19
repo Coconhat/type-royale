@@ -31,6 +31,7 @@ export default function StartPage() {
     ready,
     onlinePlayers,
     playerId,
+    resetMatch,
   } = socketHook;
 
   useEffect(() => {
@@ -146,6 +147,7 @@ export default function StartPage() {
   // Handle game over in multiplayer - return to home
   const handleGameOver = () => {
     leaveQueue();
+    resetMatch();
     setStart(false);
     setFinding(false);
     setAutoCountdown(null);

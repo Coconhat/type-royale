@@ -295,6 +295,13 @@ export default function useSocket(
   const sendHit = (roomId, enemyId, word) =>
     socketRef.current?.emit("hit", { roomId, enemyId, word });
 
+  const resetMatch = () => {
+    setMatch(null);
+    setServerEnemies([]);
+    setRoomPlayers([]);
+    setSpectatorEnemies({});
+  };
+
   return {
     socket: socketRef.current,
     connected,
@@ -307,6 +314,7 @@ export default function useSocket(
     leaveQueue,
     ready,
     sendHit,
+    resetMatch,
     playerId: socketRef.current?.id,
   };
 }
