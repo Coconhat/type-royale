@@ -158,7 +158,7 @@ export default function StartPage() {
     );
 
   return (
-    <div className="h-screen overflow-hidden bg-[#060612] text-white">
+    <div className="h-screen bg-[#060612] text-white">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 py-12 space-y-12">
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="space-y-4">
