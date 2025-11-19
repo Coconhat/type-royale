@@ -226,6 +226,21 @@ export default function StartPage() {
                   </div>
                 </div>
               </div>
+
+              {findSeconds > 20 && (
+                <div className="absolute top-4 right-4 z-20 w-64 rounded-xl border border-amber-400/40 bg-[#0d0d17]/90 px-4 py-3 text-xs shadow-lg shadow-black/50 backdrop-blur-sm animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 animate-ping rounded-full bg-amber-400" />
+                    <span className="font-semibold tracking-wide text-amber-300">
+                      Possible Cold Start
+                    </span>
+                  </div>
+                  <p className="mt-2 leading-relaxed text-amber-100/90">
+                    The server may be waking up (cold start). This can take ~30s
+                    on free hosting. You can wait or cancel and retry.
+                  </p>
+                </div>
+              )}
             </ModeStatus>
           )}
 
